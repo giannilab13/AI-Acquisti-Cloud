@@ -404,6 +404,7 @@ document.querySelectorAll('.nav[data-view]').forEach(btn=>{
     btn.classList.add('active');
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active-view'));
     document.getElementById(btn.dataset.view).classList.add('active-view');
+    if(btn.dataset.view==='dashboardView') loadDashboard();
     if(btn.dataset.view==='documentsView') loadDocuments();
     if(btn.dataset.view==='priceListsView'){ loadPriceListSuppliers(); loadPriceLists(); }
     if(btn.dataset.view==='usersView') loadCompanyUsers();
