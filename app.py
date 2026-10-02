@@ -21,6 +21,7 @@ from db import (
     init_platform_db,
     link_user_to_company,
     list_company_users,
+    list_companies,
     list_user_companies,
     next_text_id,
     reset_active_company,
@@ -34,7 +35,7 @@ from ai_service import ask_ai
 
 load_dotenv()
 
-app = FastAPI(title="AI Acquisti Cloud", version="1.4C2")
+app = FastAPI(title="AI Acquisti Cloud", version="1.4C2.1")
 BASE_DIR = Path(__file__).parent
 COOKIE_SECURE = bool(os.getenv("RAILWAY_ENVIRONMENT_ID")) or os.getenv("COOKIE_SECURE", "").lower() in {"1", "true", "yes"}
 init_platform_db()
@@ -71,9 +72,10 @@ async def authentication_and_company_context(request: Request, call_next):
 
     request.state.user = user
 
-    # Le API di autenticazione e piattaforma utenti non richiedono X-Company-ID.
+    # Le API di autenticazione e amministrazione piattaforma non richiedono X-Company-ID.
     needs_company = not (
         path.startswith("/api/auth/")
+        or path.startswith("/api/platform/admin/")
         or path == "/api/platform/companies"
     )
 
@@ -184,25 +186,58 @@ def auth_me(request: Request):
 
 @app.get("/api/platform/companies")
 def platform_companies(request: Request):
+    # Un PLATFORM_ADMIN gestisce i tenant dal pannello dedicato e non entra
+    # automaticamente nelle aziende operative.
+    if request.state.user.get("is_platform_admin"):
+        return []
     return list_user_companies(request.state.user["id"])
 
 
 @app.post("/api/platform/companies")
 def platform_create_company(payload: dict, request: Request):
+    raise HTTPException(403, "La creazione delle aziende è riservata al gestore della piattaforma.")
+
+
+def _require_platform_admin(request: Request):
+    if not request.state.user.get("is_platform_admin"):
+        raise HTTPException(403, "Accesso riservato al gestore della piattaforma.")
+
+
+@app.get("/api/platform/admin/companies")
+def platform_admin_companies(request: Request):
+    _require_platform_admin(request)
+    return list_companies()
+
+
+@app.post("/api/platform/admin/companies")
+def platform_admin_create_company(payload: dict, request: Request):
+    _require_platform_admin(request)
+
+    admin_email = str(payload.get("admin_email") or "").strip()
+    admin_password = str(payload.get("admin_password") or "")
+    admin_name = str(payload.get("admin_name") or "").strip()
+
+    if not admin_email:
+        raise HTTPException(400, "Inserisci l'email dell'amministratore aziendale.")
+    if len(admin_password) < 8:
+        raise HTTPException(400, "La password dell'amministratore aziendale deve avere almeno 8 caratteri.")
+
     try:
         company = create_company(
             name=payload.get("name"),
             vat_number=payload.get("vat_number", ""),
             sector=payload.get("sector", ""),
         )
-        link_user_to_company(
-            request.state.user["id"],
-            company["id"],
-            "ADMIN",
+        company_admin = create_company_user(
+            company_id=company["id"],
+            email=admin_email,
+            password=admin_password,
+            full_name=admin_name,
+            role="ADMIN",
         )
         return {
-            **company,
-            "role": "ADMIN",
+            "company": company,
+            "company_admin": company_admin,
         }
     except ValueError as exc:
         raise HTTPException(400, str(exc))

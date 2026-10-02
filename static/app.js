@@ -155,11 +155,89 @@ async function bootstrapApp(){
     hideAuth();
     updateCurrentUserUI();
 
+    if(Number(currentUser?.is_platform_admin || 0)===1){
+      await showPlatformAdmin();
+      return;
+    }
+
+    hidePlatformAdmin();
     const ready=await loadCompanies();
     if(ready)await loadDashboard();
   }catch(e){
     console.error(e);
     showAuthMode('login');
+  }
+}
+
+
+function hidePlatformAdmin(){
+  document.getElementById('platformAdminScreen')?.classList.add('hidden');
+}
+
+async function showPlatformAdmin(){
+  const screen=document.getElementById('platformAdminScreen');
+  screen.classList.remove('hidden');
+  document.getElementById('platformAdminName').textContent=currentUser?.full_name || currentUser?.email || 'Gestore piattaforma';
+  document.getElementById('platformAdminEmail').textContent=currentUser?.email || '';
+  await loadPlatformCompanies();
+}
+
+async function loadPlatformCompanies(){
+  const el=document.getElementById('platformCompaniesTable');
+  try{
+    const rows=await getJSON('/api/platform/admin/companies');
+    if(!rows.length){
+      el.innerHTML='<div class="empty-state">Nessuna azienda cliente ancora creata.</div>';
+      return;
+    }
+    el.innerHTML=`<table>
+      <thead><tr><th>Azienda</th><th>Partita IVA</th><th>Settore</th><th>Stato</th></tr></thead>
+      <tbody>${rows.map(c=>`<tr>
+        <td><strong>${c.name}</strong></td>
+        <td>${c.vat_number||'—'}</td>
+        <td>${c.sector||'—'}</td>
+        <td>${c.status==='ACTIVE'?'Attiva':c.status}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }catch(e){
+    el.innerHTML=`<div class="result-error">${e.message||e}</div>`;
+  }
+}
+
+async function createPlatformCompany(){
+  const result=document.getElementById('platformCompanyResult');
+  const btn=document.getElementById('platformCreateCompanyBtn');
+  btn.disabled=true;
+  btn.textContent='Creazione...';
+  result.innerHTML='';
+
+  try{
+    const data=await getJSON('/api/platform/admin/companies',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        name:document.getElementById('platformCompanyName').value.trim(),
+        vat_number:document.getElementById('platformCompanyVat').value.trim(),
+        sector:document.getElementById('platformCompanySector').value.trim(),
+        admin_name:document.getElementById('platformCompanyAdminName').value.trim(),
+        admin_email:document.getElementById('platformCompanyAdminEmail').value.trim(),
+        admin_password:document.getElementById('platformCompanyAdminPassword').value
+      })
+    });
+
+    document.getElementById('platformCompanyName').value='';
+    document.getElementById('platformCompanyVat').value='';
+    document.getElementById('platformCompanySector').value='';
+    document.getElementById('platformCompanyAdminName').value='';
+    document.getElementById('platformCompanyAdminEmail').value='';
+    document.getElementById('platformCompanyAdminPassword').value='';
+    result.innerHTML=`<div class="result-success"><strong>${data.company.name}</strong> creata. Amministratore aziendale: ${data.company_admin.email}</div>`;
+    await loadPlatformCompanies();
+  }catch(e){
+    result.innerHTML=`<div class="result-error">${e.message||e}</div>`;
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Crea azienda cliente';
   }
 }
 
@@ -209,7 +287,7 @@ async function setupFirstAdmin(){
     result.innerHTML=`<div class="result-error">${e.message||e}</div>`;
   }finally{
     btn.disabled=false;
-    btn.textContent='Crea amministratore';
+    btn.textContent='Crea gestore piattaforma';
   }
 }
 
@@ -246,6 +324,7 @@ async function logout(){
     console.error(e);
   }
   currentUser=null;
+  hidePlatformAdmin();
   companiesCache=[];
   activeCompanyId=0;
   localStorage.removeItem('ai_acquisti_company_id');
@@ -1422,6 +1501,10 @@ window.showPriceListDetail = async id => {
   panel.classList.remove('hidden');
   panel.scrollIntoView({behavior:'smooth',block:'start'});
 };
+
+document.getElementById('platformCreateCompanyBtn')?.addEventListener('click',createPlatformCompany);
+document.getElementById('platformRefreshCompaniesBtn')?.addEventListener('click',loadPlatformCompanies);
+document.getElementById('platformLogoutBtn')?.addEventListener('click',logout);
 
 document.getElementById('priceListUploadBtn').addEventListener('click', uploadPriceList);
 document.getElementById('refreshPriceLists').addEventListener('click', loadPriceLists);

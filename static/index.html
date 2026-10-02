@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Acquisti - Cloud 1.4C1</title>
+  <title>AI Acquisti - Cloud 1.4C2.1</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -30,7 +30,7 @@
       <span id="currentUserEmail">—</span>
       <button id="logoutBtn" type="button">Esci</button>
     </div>
-    <div class="version">Cloud 1.4C1</div>
+    <div class="version">Cloud 1.4C2.1</div>
   </aside>
 
   <main>
@@ -360,13 +360,63 @@
   </main>
 
   
+
+  <div id="platformAdminScreen" class="platform-admin-screen hidden">
+    <div class="platform-admin-shell">
+      <header class="platform-admin-header">
+        <div>
+          <div class="auth-brand">AI Acquisti</div>
+          <h1>Gestione piattaforma</h1>
+          <p>Area riservata al gestore di AI Acquisti. Qui crei le aziende clienti e il loro primo amministratore.</p>
+        </div>
+        <div class="platform-admin-user">
+          <strong id="platformAdminName">—</strong>
+          <span id="platformAdminEmail">—</span>
+          <button id="platformLogoutBtn" type="button" class="secondary">Esci</button>
+        </div>
+      </header>
+
+      <div class="platform-admin-grid">
+        <section class="panel">
+          <div class="panel-title">
+            <div>
+              <h2>Aziende clienti</h2>
+              <p class="sub">Ogni azienda è separata dalle altre e avrà i propri utenti e dati.</p>
+            </div>
+            <button id="platformRefreshCompaniesBtn" class="secondary" type="button">Aggiorna</button>
+          </div>
+          <div id="platformCompaniesTable"></div>
+        </section>
+
+        <section class="panel platform-create-card">
+          <div class="panel-title">
+            <div>
+              <h2>Nuova azienda cliente</h2>
+              <p class="sub">Crea il tenant e il suo primo amministratore aziendale.</p>
+            </div>
+          </div>
+
+          <label>Nome azienda *<input id="platformCompanyName" type="text" placeholder="Es. Azienda Demo S.r.l."></label>
+          <label>Partita IVA<input id="platformCompanyVat" type="text" placeholder="Facoltativa"></label>
+          <label>Settore<input id="platformCompanySector" type="text" placeholder="Es. Retail, Industria, Ristorazione"></label>
+          <hr>
+          <label>Nome amministratore aziendale<input id="platformCompanyAdminName" type="text" placeholder="Nome e cognome"></label>
+          <label>Email amministratore *<input id="platformCompanyAdminEmail" type="email" placeholder="admin@azienda.it"></label>
+          <label>Password temporanea *<input id="platformCompanyAdminPassword" type="password" placeholder="Minimo 8 caratteri"></label>
+          <div id="platformCompanyResult"></div>
+          <button id="platformCreateCompanyBtn" type="button">Crea azienda cliente</button>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <div id="authScreen" class="auth-screen">
     <div class="auth-card">
       <div class="auth-brand">AI Acquisti</div>
 
       <div id="setupPanel" class="hidden">
         <h1>Configurazione iniziale</h1>
-        <p>Crea il primo amministratore della piattaforma.</p>
+        <p>Crea il primo <strong>Gestore piattaforma</strong>. Questo account amministra AI Acquisti e non appartiene a una singola azienda cliente.</p>
 
         <label>
           Nome
@@ -382,7 +432,7 @@
         </label>
 
         <div id="setupResult"></div>
-        <button id="setupBtn" type="button">Crea amministratore</button>
+        <button id="setupBtn" type="button">Crea gestore piattaforma</button>
       </div>
 
       <div id="loginPanel" class="hidden">

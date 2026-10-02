@@ -1057,3 +1057,30 @@ tr.invoice-line-anomaly:hover > td{
     min-width:0;
   }
 }
+
+/* 1.4C2.1 - Gestore piattaforma */
+.platform-admin-screen{
+  position:fixed;
+  inset:0;
+  z-index:1200;
+  background:#f6f7fb;
+  overflow:auto;
+  padding:32px;
+}
+.platform-admin-shell{max-width:1200px;margin:0 auto;}
+.platform-admin-header{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;margin-bottom:24px;}
+.platform-admin-header h1{margin:8px 0 6px;}
+.platform-admin-header p{margin:0;color:#667085;max-width:760px;}
+.platform-admin-user{display:flex;flex-direction:column;align-items:flex-end;gap:4px;min-width:220px;}
+.platform-admin-user span{color:#667085;font-size:14px;}
+.platform-admin-user button{margin-top:8px;}
+.platform-admin-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,.8fr);gap:24px;align-items:start;}
+.platform-create-card label{display:block;margin:0 0 14px;font-weight:600;}
+.platform-create-card input{display:block;width:100%;margin-top:6px;}
+.platform-create-card hr{border:0;border-top:1px solid #e5e7eb;margin:18px 0;}
+@media (max-width:900px){
+  .platform-admin-screen{padding:18px;}
+  .platform-admin-header{flex-direction:column;}
+  .platform-admin-user{align-items:flex-start;}
+  .platform-admin-grid{grid-template-columns:1fr;}
+}
