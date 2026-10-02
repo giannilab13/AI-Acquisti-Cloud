@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-multipart
+openpyxl
+
+openai
+
+python-dotenv
+
+pypdf
+psycopg[binary]
+boto3

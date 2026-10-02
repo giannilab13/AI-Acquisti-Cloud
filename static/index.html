@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Acquisti - Cloud 1.4C1</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">AI Acquisti</div>
+    <div class="company-switcher">
+      <label for="companySelect">Azienda</label>
+      <select id="companySelect">
+        <option value="">Caricamento...</option>
+      </select>
+      <button id="newCompanyBtn" class="company-new-btn" type="button">+ Nuova azienda</button>
+    </div>
+    <nav>
+      <button class="nav active" data-view="dashboardView">Dashboard</button>
+      <button class="nav" data-view="documentsView">Documenti</button>
+      <button class="nav" data-view="productsView">Prodotti</button>
+      <button class="nav" data-view="suppliersView">Fornitori</button>
+      <button class="nav" data-view="priceListsView">Listini</button>
+      <button class="nav" data-view="usersView">Utenti</button>
+      <button class="nav" disabled>Storico prezzi</button>
+    </nav>
+    <div class="sidebar-user">
+      <strong id="currentUserName">—</strong>
+      <span id="currentUserEmail">—</span>
+      <button id="logoutBtn" type="button">Esci</button>
+    </div>
+    <div class="version">Cloud 1.4C1</div>
+  </aside>
+
+  <main>
+    <section id="dashboardView" class="view active-view">
+      <header>
+        <div>
+          <h1>Dashboard acquisti</h1>
+          <p id="period">Caricamento...</p>
+        </div>
+        <div class="status"><span id="activeCompanyLabel">Nessuna azienda</span></div>
+      </header>
+
+      <section class="kpis dashboard-kpis">
+        <div class="card">
+          <span>Spesa mese</span>
+          <strong id="spend">—</strong>
+        </div>
+        <div class="card">
+          <span>Vs mese precedente</span>
+          <strong id="variation">—</strong>
+        </div>
+        <div class="card">
+          <span>Maggior costo anomalie</span>
+          <strong id="anomalyCost">—</strong>
+        </div>
+        <div class="card">
+          <span>Documenti da gestire</span>
+          <strong id="docCheck">—</strong>
+        </div>
+      </section>
+
+      <section class="panel dashboard-inbox-panel">
+        <div class="panel-title">
+          <div>
+            <h2>Documenti da gestire</h2>
+            <p class="sub">Ogni documento importato compare qui per primo. Aprilo, esegui il controllo richiesto e chiudilo quando hai terminato.</p>
+          </div>
+          <span id="dashboardInboxCount">0 documenti</span>
+        </div>
+        <div id="dashboardInbox"></div>
+      </section>
+
+      <section class="panel dashboard-anomalies">
+        <div class="panel-title">
+          <div>
+            <h2>Fatture con anomalie</h2>
+            <p class="sub">Mostriamo solo le fatture. Clicca una riga per aprire direttamente il dettaglio.</p>
+          </div>
+          <span>Ultime 5 più rilevanti</span>
+        </div>
+        <div id="dashboardAnomalies"></div>
+      </section>
+
+      <section class="panel dashboard-review-panel">
+        <div class="panel-title">
+          <div>
+            <h2>Fatture da verificare</h2>
+            <p class="sub">Documenti letti dal sistema che richiedono una conferma prima di entrare nello storico.</p>
+          </div>
+          <span>Massimo 5 fatture</span>
+        </div>
+        <div id="dashboardReviews"></div>
+      </section>
+
+
+      <section class="dashboard-bottom">
+        <div class="panel">
+          <div class="panel-title">
+            <h2>Andamento spesa</h2>
+            <span>Storico mensile</span>
+          </div>
+          <div id="monthly" class="bars dashboard-bars"></div>
+        </div>
+
+        <div class="panel assistant dashboard-assistant">
+          <div class="panel-title">
+            <h2>Chiedi all'AI</h2>
+            <span>Dati reali del gestionale</span>
+          </div>
+          <div id="chat" class="chat compact-chat">
+            <div class="ai-message">Chiedimi, ad esempio: “Quali sono le anomalie più importanti?”</div>
+          </div>
+          <div class="ask">
+            <input id="question" placeholder="Fai una domanda sui tuoi acquisti...">
+            <button id="askBtn">Invia</button>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section id="documentsView" class="view">
+      <header>
+        <div><h1>Documenti</h1><p>Importazione fatture XML FatturaPA e PDF con AI</p></div>
+        <div class="status">Cloud 1.4C1</div>
+      </header>
+
+      <section class="panel upload-panel">
+        <div class="panel-title">
+          <div><h2>Importa fatture XML / PDF</h2><p class="sub">Puoi selezionare una o più fatture. Verranno elaborate in sequenza e classificate come Importata, Con anomalie, Da verificare, Duplicata o Errore.</p></div>
+        </div>
+        <div class="upload-row">
+          <input id="xmlFile" type="file" multiple accept=".xml,.pdf,text/xml,application/xml,application/pdf">
+          <button id="uploadBtn">Importa fatture</button>
+        </div>
+        <div id="uploadResult"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <div>
+            <h2>Fatture importate</h2>
+            <p class="sub">Filtra rapidamente quelle con anomalie o quelle che richiedono una conferma.</p>
+          </div>
+          <button class="secondary" id="refreshDocs">Aggiorna</button>
+        </div>
+        <div class="document-filter-bar">
+          <button class="doc-filter active" data-doc-filter="ALL">Tutte <span id="filterAllCount">0</span></button>
+          <button class="doc-filter anomaly" data-doc-filter="CON_ANOMALIE">Con anomalie <span id="filterAnomalyCount">0</span></button>
+          <button class="doc-filter review" data-doc-filter="DA_VERIFICARE">Da verificare <span id="filterReviewCount">0</span></button>
+        </div>
+        <div id="documentsTable"></div>
+      </section>
+
+      <section id="docDetailPanel" class="panel hidden detail-panel">
+        <div class="panel-title document-detail-title">
+          <h2>Dettaglio documento</h2>
+          <div class="document-detail-actions">
+            <span id="docDetailMeta"></span>
+            <button type="button" class="secondary close-document-view-btn" onclick="closeDocumentDetail()">Chiudi</button>
+          </div>
+        </div>
+        <div id="docDetail"></div>
+      </section>
+    </section>
+
+    <section id="priceListsView" class="view">
+      <header>
+        <div>
+          <h1>Listini</h1>
+          <p>Importazione e consultazione delle condizioni economiche dei fornitori.</p>
+        </div>
+        <div class="status">Cloud 1.4C1</div>
+      </header>
+
+      <section class="panel upload-panel">
+        <div class="panel-title">
+          <div>
+            <h2>Importa listino Excel / CSV</h2>
+            <p class="sub">Il listino aggiorna i prezzi offerti dal fornitore, non gli acquisti reali.</p>
+          </div>
+        </div>
+        <div class="upload-row listino-upload-row">
+          <div class="supplier-select-group">
+            <select id="priceListSupplier">
+              <option value="">Seleziona fornitore...</option>
+            </select>
+            <button id="newSupplierBtn" type="button" class="secondary new-supplier-btn">+ Nuovo fornitore</button>
+          </div>
+          <input id="priceListFile" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+          <button id="priceListUploadBtn">Importa listino</button>
+        </div>
+        <div id="priceListUploadResult"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <h2>Listini importati</h2>
+          <button class="secondary" id="refreshPriceLists">Aggiorna</button>
+        </div>
+        <div id="priceListsTable"></div>
+      </section>
+
+      <section id="priceListDetailPanel" class="panel hidden">
+        <div class="panel-title"><h2>Dettaglio listino</h2><span id="priceListDetailMeta"></span></div>
+        <div id="priceListDetail"></div>
+      </section>
+
+    </section>
+
+    <section id="usersView" class="view">
+      <header>
+        <div>
+          <h1>Utenti</h1>
+          <p>Gestisci gli accessi all'azienda selezionata.</p>
+        </div>
+        <div class="status">Cloud 1.4C1</div>
+      </header>
+
+      <section class="panel">
+        <div class="panel-title">
+          <div>
+            <h2>Nuovo utente</h2>
+            <p class="sub">L'amministratore può creare un accesso per un collega della stessa azienda.</p>
+          </div>
+        </div>
+
+        <div class="user-form-grid">
+          <label>
+            Nome
+            <input id="newUserName" type="text" placeholder="Es. Mario Rossi">
+          </label>
+          <label>
+            Email
+            <input id="newUserEmail" type="email" placeholder="nome@azienda.it">
+          </label>
+          <label>
+            Password iniziale
+            <input id="newUserPassword" type="password" placeholder="Minimo 8 caratteri">
+          </label>
+          <label>
+            Ruolo
+            <select id="newUserRole">
+              <option value="OPERATOR">Operatore</option>
+              <option value="ADMIN">Amministratore</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="user-form-actions">
+          <div id="newUserResult"></div>
+          <button id="createUserBtn" type="button">Crea utente</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <div>
+            <h2>Utenti dell'azienda</h2>
+            <p class="sub">Ogni utente vede soltanto le aziende a cui è associato.</p>
+          </div>
+        </div>
+        <div id="companyUsersTable"></div>
+      </section>
+    </section>
+
+    <section id="productsView" class="view">
+      <header>
+        <div>
+          <h1>Prodotti</h1>
+          <p>Elenco completo dei prodotti presenti nel database e relativo storico acquisti.</p>
+        </div>
+        <div class="status">Cloud 1.4C1</div>
+      </header>
+
+      <section class="kpis product-kpis">
+        <div class="card"><span>Prodotti totali</span><strong id="productsTotal">—</strong></div>
+        <div class="card"><span>Categorie</span><strong id="categoriesTotal">—</strong></div>
+        <div class="card"><span>Prodotti acquistati</span><strong id="productsPurchased">—</strong></div>
+        <div class="card"><span>Senza acquisti</span><strong id="productsNoPurchases">—</strong></div>
+      </section>
+
+      <section class="panel">
+        <div class="products-toolbar">
+          <div class="search-box">
+            <label for="productsSearch">Cerca prodotto</label>
+            <input id="productsSearch" type="search" placeholder="Nome, categoria, fornitore...">
+          </div>
+          <div class="filter-box">
+            <label for="productsCategory">Categoria</label>
+            <select id="productsCategory">
+              <option value="">Tutte</option>
+            </select>
+          </div>
+          <div class="products-count" id="productsCountLabel"></div>
+        </div>
+        <div id="productsTable"></div>
+      </section>
+
+      <section id="productDetailPanel" class="panel hidden detail-panel">
+        <div class="panel-title">
+          <div>
+            <h2 id="productDetailTitle">Dettaglio prodotto</h2>
+            <p class="sub" id="productDetailSubtitle"></p>
+          </div>
+          <button class="secondary" id="closeProductDetail">Chiudi dettaglio</button>
+        </div>
+        <div id="productDetail"></div>
+      </section>
+    </section>
+
+
+    <section id="suppliersView" class="view">
+      <header>
+        <div>
+          <h1>Fornitori</h1>
+          <p>Controllo fornitori, spesa, prodotti acquistati e documenti collegati.</p>
+        </div>
+        <div class="status">Cloud 1.4C1</div>
+      </header>
+
+      <section class="kpis supplier-kpis">
+        <div class="card"><span>Fornitori totali</span><strong id="suppliersTotal">—</strong></div>
+        <div class="card"><span>Con acquisti</span><strong id="suppliersWithPurchases">—</strong></div>
+        <div class="card"><span>Spesa complessiva</span><strong id="suppliersSpendTotal">—</strong></div>
+        <div class="card"><span>Documenti importati</span><strong id="suppliersDocsTotal">—</strong></div>
+      </section>
+
+      <section class="panel">
+        <div class="products-toolbar">
+          <div class="search-box">
+            <label for="suppliersSearch">Cerca fornitore</label>
+            <input id="suppliersSearch" type="search" placeholder="Nome, P.IVA, categoria...">
+          </div>
+          <div class="filter-box">
+            <label for="suppliersCategory">Categoria</label>
+            <select id="suppliersCategory">
+              <option value="">Tutte</option>
+            </select>
+          </div>
+          <div class="products-count" id="suppliersCountLabel"></div>
+        </div>
+        <div id="suppliersTable"></div>
+      </section>
+
+      <section id="supplierDetailPanel" class="panel hidden detail-panel">
+        <div class="panel-title">
+          <div>
+            <h2 id="supplierDetailTitle">Dettaglio fornitore</h2>
+            <p class="sub" id="supplierDetailSubtitle"></p>
+          </div>
+          <button class="secondary" id="closeSupplierDetail">Chiudi dettaglio</button>
+        </div>
+        <div id="supplierDetail"></div>
+      </section>
+    </section>
+
+  </main>
+
+  
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <div class="auth-brand">AI Acquisti</div>
+
+      <div id="setupPanel" class="hidden">
+        <h1>Configurazione iniziale</h1>
+        <p>Crea il primo amministratore della piattaforma.</p>
+
+        <label>
+          Nome
+          <input id="setupName" type="text" placeholder="Nome e cognome">
+        </label>
+        <label>
+          Email
+          <input id="setupEmail" type="email" placeholder="nome@azienda.it">
+        </label>
+        <label>
+          Password
+          <input id="setupPassword" type="password" placeholder="Minimo 8 caratteri">
+        </label>
+
+        <div id="setupResult"></div>
+        <button id="setupBtn" type="button">Crea amministratore</button>
+      </div>
+
+      <div id="loginPanel" class="hidden">
+        <h1>Accedi</h1>
+        <p>Inserisci le tue credenziali per entrare in AI Acquisti.</p>
+
+        <label>
+          Email
+          <input id="loginEmail" type="email" placeholder="nome@azienda.it">
+        </label>
+        <label>
+          Password
+          <input id="loginPassword" type="password" placeholder="Password">
+        </label>
+
+        <div id="loginResult"></div>
+        <button id="loginBtn" type="button">Accedi</button>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="supplierModal" class="company-modal hidden">
+    <div class="company-modal-card supplier-modal-card">
+      <div>
+        <h2>Nuovo fornitore</h2>
+        <p>Crea il fornitore e poi importa subito il suo listino.</p>
+      </div>
+
+      <label>
+        Nome fornitore *
+        <input id="supplierName" type="text" placeholder="Es. Alfa Food S.r.l.">
+      </label>
+
+      <label>
+        Partita IVA
+        <input id="supplierVat" type="text" placeholder="Facoltativa">
+      </label>
+
+      <label>
+        Categoria
+        <input id="supplierCategory" type="text" placeholder="Facoltativa">
+      </label>
+
+      <div id="supplierCreateResult"></div>
+
+      <div class="company-modal-actions">
+        <button id="cancelSupplierBtn" class="secondary" type="button">Annulla</button>
+        <button id="createSupplierBtn" type="button">Crea fornitore</button>
+      </div>
+    </div>
+  </div>
+
+<div id="companyModal" class="company-modal hidden">
+    <div class="company-modal-card">
+      <div>
+        <h2 id="companyModalTitle">Crea azienda</h2>
+        <p>Lo spazio aziendale parte vuoto. Fornitori, prodotti, listini e storico prenderanno forma caricando i documenti dell'azienda.</p>
+      </div>
+
+      <label>
+        Nome azienda *
+        <input id="companyName" type="text" placeholder="Es. Rossi Ricambi S.r.l.">
+      </label>
+
+      <label>
+        Partita IVA
+        <input id="companyVat" type="text" placeholder="Facoltativa in questa fase">
+      </label>
+
+      <label>
+        Settore
+        <input id="companySector" type="text" placeholder="Facoltativo: autoricambi, industria, retail...">
+      </label>
+
+      <div id="companyCreateResult"></div>
+
+      <div class="company-modal-actions">
+        <button id="cancelCompanyBtn" class="secondary" type="button">Annulla</button>
+        <button id="createCompanyBtn" type="button">Crea azienda</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

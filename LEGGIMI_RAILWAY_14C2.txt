@@ -1,0 +1,23 @@
+AI ACQUISTI CLOUD 1.4C2 - RAILWAY
+
+Questa cartella e' pronta per un repository GitHub PRIVATO e per Railway.
+
+NON caricare mai su GitHub:
+- .env
+- .venv
+- data/
+- password o chiavi API
+
+Variabili richieste nel servizio applicativo Railway:
+- DATABASE_URL = riferimento al servizio Postgres -> DATABASE_URL
+- OPENAI_API_KEY = chiave OpenAI (se si vuole usare l'assistente/import PDF AI)
+- OPENAI_MODEL = modello configurato
+- BUCKET = riferimento al Bucket -> BUCKET
+- ACCESS_KEY_ID = riferimento al Bucket -> ACCESS_KEY_ID
+- SECRET_ACCESS_KEY = riferimento al Bucket -> SECRET_ACCESS_KEY
+- ENDPOINT = riferimento al Bucket -> ENDPOINT
+- REGION = riferimento al Bucket -> REGION
+
+Su Railway i cookie di sessione diventano Secure automaticamente.
+I documenti originali XML/PDF vengono salvati nel bucket S3-compatible.
+In locale, se le variabili bucket non esistono, resta il fallback data/uploads.
