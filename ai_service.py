@@ -4,6 +4,7 @@ import os
 from openai import OpenAI
 
 from ai_query_context import build_question_context
+from ai_context_refinement import refine_question_context
 
 
 MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-luna")
@@ -18,6 +19,7 @@ def ask_ai(question: str):
         )
 
     business_context = build_question_context(question)
+    business_context = refine_question_context(question, business_context)
 
     client = OpenAI(api_key=api_key)
     instructions = """
@@ -31,9 +33,9 @@ REGOLE OBBLIGATORIE:
 5. Le statistiche indicate come full_history/full_database sono calcolate sull'intero database, non su un campione.
 6. Per un prodotto usa latest_purchase_exact per dire quando, da chi e a che prezzo è stato acquistato l'ultima volta.
 7. Per dire da quali fornitori è stato acquistato un prodotto usa all_suppliers_used_for_product.
-8. Per sapere quali fornitori hanno il prodotto a listino usa latest_price_list_per_supplier: rappresenta l'ultimo listino disponibile per ciascun fornitore.
+8. Per sapere quali fornitori hanno il prodotto attualmente a listino usa latest_price_list_per_supplier: considera solo l'ultimo listino importato di ciascun fornitore.
 9. Distingui sempre prezzo di listino, sconti, prezzo netto di listino e prezzo realmente pagato.
-10. Per minimo, massimo, media, totale e date usa purchase_statistics_full_history.
+10. Per minimo, massimo, media, totale e date usa purchase_statistics_full_history. Se purchase_lines è 0, non presentare valori zero come prezzi reali: dì che non risultano acquisti.
 11. Per le anomalie usa anomaly_summary_full_history e recent_anomaly_details. Se price_variance_total è positivo è un maggior costo; se è negativo è un risparmio.
 12. Se matched_products contiene più prodotti plausibili e la domanda non consente di distinguerli con sicurezza, chiedi quale prodotto intende l'utente invece di scegliere arbitrariamente.
 13. Se non trovi un prodotto o un fornitore coerente con la domanda, dillo chiaramente e invita a indicare nome o codice articolo.
