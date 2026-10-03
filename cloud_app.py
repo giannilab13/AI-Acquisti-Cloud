@@ -1,10 +1,14 @@
-from fastapi import HTTPException, Request
+from pathlib import Path
+from typing import Optional
+
+from fastapi import File, HTTPException, Request, UploadFile
 
 from app import app
 from db import get_platform_connection, hash_password, verify_password
+from smart_price_list import smart_import_price_list
 
 
-app.version = "1.4C2.3"
+app.version = "1.4C2.5"
 
 
 @app.post("/api/auth/change-password")
@@ -57,3 +61,34 @@ def change_own_password(payload: dict, request: Request):
         "ok": True,
         "message": "Password aggiornata correttamente.",
     }
+
+
+@app.post("/api/price-lists/smart-upload")
+async def smart_upload_price_list(
+    file: UploadFile = File(...),
+    supplier_id: Optional[str] = None,
+):
+    filename = file.filename or "listino"
+    extension = Path(filename).suffix.lower()
+    if extension not in {".csv", ".xlsx"}:
+        raise HTTPException(400, "Formato non supportato. Usa un listino CSV oppure XLSX.")
+
+    content = await file.read()
+    if len(content) > 15_000_000:
+        raise HTTPException(400, "File troppo grande (massimo 15 MB).")
+
+    selected_supplier_id = str(supplier_id or "").strip() or None
+
+    try:
+        result = smart_import_price_list(
+            file_name=filename,
+            file_bytes=content,
+            selected_supplier_id=selected_supplier_id,
+        )
+        if result.get("duplicate"):
+            raise HTTPException(409, result["message"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(400, f"Importazione listino non riuscita: {exc}")
