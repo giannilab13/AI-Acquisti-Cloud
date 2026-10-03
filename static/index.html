@@ -203,7 +203,13 @@
       </section>
 
       <section id="priceListDetailPanel" class="panel hidden">
-        <div class="panel-title"><h2>Dettaglio listino</h2><span id="priceListDetailMeta"></span></div>
+        <div class="panel-title document-detail-title">
+          <h2>Dettaglio listino</h2>
+          <div class="document-detail-actions">
+            <span id="priceListDetailMeta"></span>
+            <button type="button" class="secondary close-document-view-btn" onclick="document.getElementById('priceListDetailPanel').classList.add('hidden')">Chiudi dettaglio</button>
+          </div>
+        </div>
         <div id="priceListDetail"></div>
       </section>
     </section>
