@@ -210,6 +210,7 @@ CREATE TABLE IF NOT EXISTS user_companies (
     user_id BIGINT NOT NULL,
     company_id BIGINT NOT NULL,
     role TEXT NOT NULL DEFAULT 'OPERATOR',
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
     created_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP::TEXT),
     PRIMARY KEY(user_id, company_id),
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -405,6 +406,12 @@ def init_platform_db():
         _set_search_path(raw, "public")
         with raw.cursor() as cur:
             cur.execute(PLATFORM_DDL)
+            cur.execute(
+                """
+                ALTER TABLE user_companies
+                ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'ACTIVE'
+                """
+            )
         raw.commit()
         _platform_initialized = True
     finally:
@@ -630,7 +637,9 @@ def list_user_companies(user_id):
                    uc.role
             FROM user_companies uc
             JOIN companies c ON c.id=uc.company_id
-            WHERE uc.user_id=? AND c.status='ACTIVE'
+            WHERE uc.user_id=?
+              AND c.status='ACTIVE'
+              AND COALESCE(uc.status,'ACTIVE')='ACTIVE'
             ORDER BY c.name
             """,
             (int(user_id),),
@@ -648,6 +657,7 @@ def user_has_company(user_id, company_id):
             SELECT role
             FROM user_companies
             WHERE user_id=? AND company_id=?
+              AND COALESCE(status,'ACTIVE')='ACTIVE'
             """,
             (int(user_id), int(company_id)),
         ).fetchone()
@@ -682,7 +692,9 @@ def list_company_users(company_id):
     try:
         rows = conn.execute(
             """
-            SELECT u.id,u.email,u.full_name,u.status,u.created_at,uc.role
+            SELECT u.id,u.email,u.full_name,
+                   COALESCE(uc.status,'ACTIVE') AS status,
+                   u.created_at,uc.role
             FROM user_companies uc
             JOIN users u ON u.id=uc.user_id
             WHERE uc.company_id=?
@@ -749,6 +761,140 @@ def create_company_user(company_id, email, password, full_name="", role="OPERATO
         conn.close()
 
     return {**get_user(user_id), "role": role}
+
+
+
+def update_company_user_role(company_id, user_id, role, acting_user_id=None):
+    role = str(role or "").upper()
+    if role not in {"ADMIN", "OPERATOR"}:
+        raise ValueError("Ruolo non valido.")
+
+    company_id = int(company_id)
+    user_id = int(user_id)
+    acting_user_id = int(acting_user_id) if acting_user_id is not None else None
+
+    conn = get_platform_connection()
+    try:
+        membership = conn.execute(
+            """
+            SELECT role,COALESCE(status,'ACTIVE') AS status
+            FROM user_companies
+            WHERE company_id=? AND user_id=?
+            """,
+            (company_id, user_id),
+        ).fetchone()
+        if not membership:
+            raise ValueError("Utente non appartenente a questa azienda.")
+
+        if acting_user_id == user_id and membership["role"] == "ADMIN" and role != "ADMIN":
+            raise ValueError("Non puoi toglierti il ruolo di amministratore.")
+
+        if membership["role"] == "ADMIN" and role != "ADMIN" and membership["status"] == "ACTIVE":
+            admins = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM user_companies
+                WHERE company_id=? AND role='ADMIN'
+                  AND COALESCE(status,'ACTIVE')='ACTIVE'
+                """,
+                (company_id,),
+            ).fetchone()["c"]
+            if int(admins or 0) <= 1:
+                raise ValueError("Deve rimanere almeno un amministratore attivo.")
+
+        conn.execute(
+            "UPDATE user_companies SET role=? WHERE company_id=? AND user_id=?",
+            (role, company_id, user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"id": user_id, "role": role}
+
+
+def set_company_user_status(company_id, user_id, status, acting_user_id=None):
+    status = str(status or "").upper()
+    if status not in {"ACTIVE", "INACTIVE"}:
+        raise ValueError("Stato utente non valido.")
+
+    company_id = int(company_id)
+    user_id = int(user_id)
+    acting_user_id = int(acting_user_id) if acting_user_id is not None else None
+
+    conn = get_platform_connection()
+    try:
+        membership = conn.execute(
+            """
+            SELECT role,COALESCE(status,'ACTIVE') AS status
+            FROM user_companies
+            WHERE company_id=? AND user_id=?
+            """,
+            (company_id, user_id),
+        ).fetchone()
+        if not membership:
+            raise ValueError("Utente non appartenente a questa azienda.")
+
+        if status == "INACTIVE" and acting_user_id == user_id:
+            raise ValueError("Non puoi disattivare il tuo stesso account.")
+
+        if status == "INACTIVE" and membership["role"] == "ADMIN" and membership["status"] == "ACTIVE":
+            admins = conn.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM user_companies
+                WHERE company_id=? AND role='ADMIN'
+                  AND COALESCE(status,'ACTIVE')='ACTIVE'
+                """,
+                (company_id,),
+            ).fetchone()["c"]
+            if int(admins or 0) <= 1:
+                raise ValueError("Non puoi disattivare l'ultimo amministratore attivo.")
+
+        conn.execute(
+            "UPDATE user_companies SET status=? WHERE company_id=? AND user_id=?",
+            (status, company_id, user_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return {"id": user_id, "status": status}
+
+
+def reset_company_user_password(company_id, user_id):
+    company_id = int(company_id)
+    user_id = int(user_id)
+
+    conn = get_platform_connection()
+    try:
+        membership = conn.execute(
+            "SELECT 1 FROM user_companies WHERE company_id=? AND user_id=?",
+            (company_id, user_id),
+        ).fetchone()
+        if not membership:
+            raise ValueError("Utente non appartenente a questa azienda.")
+
+        company_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM user_companies WHERE user_id=?",
+            (user_id,),
+        ).fetchone()["c"]
+        if int(company_count or 0) > 1:
+            raise ValueError(
+                "Questo utente è associato a più aziende. Il reset password deve essere eseguito dal Gestore piattaforma."
+            )
+
+        temporary_password = secrets.token_urlsafe(9)
+        conn.execute(
+            "UPDATE users SET password_hash=?, status='ACTIVE' WHERE id=?",
+            (hash_password(temporary_password), user_id),
+        )
+        conn.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+    return temporary_password
 
 
 def list_companies():
