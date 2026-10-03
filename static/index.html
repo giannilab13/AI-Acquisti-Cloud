@@ -14,7 +14,7 @@
       <select id="companySelect">
         <option value="">Caricamento...</option>
       </select>
-      <button id="newCompanyBtn" class="company-new-btn" type="button">+ Nuova azienda</button>
+      <button id="newCompanyBtn" class="company-new-btn" type="button" hidden aria-hidden="true" tabindex="-1">+ Nuova azienda</button>
     </div>
     <nav>
       <button class="nav active" data-view="dashboardView">Dashboard</button>
@@ -234,11 +234,11 @@
           </label>
           <label>
             Email
-            <input id="newUserEmail" type="email" placeholder="nome@azienda.it">
+            <input id="newUserEmail" type="email" autocomplete="off" placeholder="nome@azienda.it">
           </label>
           <label>
             Password iniziale
-            <input id="newUserPassword" type="password" placeholder="Minimo 8 caratteri">
+            <input id="newUserPassword" type="password" autocomplete="new-password" placeholder="Minimo 8 caratteri">
           </label>
           <label>
             Ruolo
@@ -402,7 +402,7 @@
           <hr>
           <label>Nome amministratore aziendale<input id="platformCompanyAdminName" type="text" placeholder="Nome e cognome"></label>
           <label>Email amministratore *<input id="platformCompanyAdminEmail" type="email" placeholder="admin@azienda.it"></label>
-          <label>Password temporanea *<input id="platformCompanyAdminPassword" type="password" placeholder="Minimo 8 caratteri"></label>
+          <label>Password temporanea *<input id="platformCompanyAdminPassword" type="password" autocomplete="new-password" placeholder="Minimo 8 caratteri"></label>
           <div id="platformCompanyResult"></div>
           <button id="platformCreateCompanyBtn" type="button">Crea azienda cliente</button>
         </section>
@@ -428,7 +428,7 @@
         </label>
         <label>
           Password
-          <input id="setupPassword" type="password" placeholder="Minimo 8 caratteri">
+          <input id="setupPassword" type="password" autocomplete="new-password" placeholder="Minimo 8 caratteri">
         </label>
 
         <div id="setupResult"></div>
@@ -441,11 +441,11 @@
 
         <label>
           Email
-          <input id="loginEmail" type="email" placeholder="nome@azienda.it">
+          <input id="loginEmail" type="email" autocomplete="username" placeholder="nome@azienda.it">
         </label>
         <label>
           Password
-          <input id="loginPassword" type="password" placeholder="Password">
+          <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password">
         </label>
 
         <div id="loginResult"></div>
