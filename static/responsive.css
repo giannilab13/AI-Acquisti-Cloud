@@ -1,0 +1,349 @@
+/* Cloud 1.4C2.4 - responsive layout
+   Solo adattamento grafico per tablet e smartphone.
+   Nessuna modifica alle funzioni applicative. */
+
+/* Tablet / notebook compatti */
+@media (max-width:1180px) and (min-width:701px){
+  .sidebar{
+    width:180px;
+    padding:20px 12px;
+  }
+  .brand{
+    font-size:19px;
+    margin-bottom:18px;
+  }
+  .company-switcher{
+    margin:12px 0 10px;
+    padding:10px;
+  }
+  .nav{
+    padding:10px 9px;
+    font-size:13px;
+  }
+  .sidebar-user{
+    padding:10px 8px;
+  }
+  main{
+    margin-left:180px;
+    width:calc(100% - 180px);
+    padding:22px 18px 30px;
+  }
+  .panel{padding:16px}
+  h1{font-size:26px}
+}
+
+/* Tabelle: su schermi stretti scorrono orizzontalmente senza comprimere i dati */
+@media (max-width:1000px){
+  #documentsTable,
+  #productsTable,
+  #suppliersTable,
+  #priceListsTable,
+  #companyUsersTable,
+  #priceListDetail,
+  #productDetail,
+  #supplierDetail,
+  #docDetail{
+    max-width:100%;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  #documentsTable table,
+  #productsTable table,
+  #suppliersTable table,
+  #priceListsTable table,
+  #companyUsersTable table{
+    min-width:720px;
+  }
+
+  #docDetail table{min-width:1180px}
+  #priceListDetail table{min-width:980px}
+  #productDetail table,
+  #supplierDetail table{min-width:720px}
+
+  .panel,
+  .card,
+  .view,
+  header > div,
+  .dashboard-bottom > *,
+  .supplier-detail-grid > *,
+  .detail-columns > *{
+    min-width:0;
+  }
+}
+
+/* Smartphone: menu in alto e contenuto a tutta larghezza */
+@media (max-width:700px){
+  body{
+    display:block;
+    min-width:0;
+    overflow-x:hidden;
+  }
+
+  .sidebar{
+    position:relative;
+    inset:auto;
+    width:100%;
+    min-height:0;
+    padding:15px 14px 13px;
+  }
+
+  .brand{
+    margin:0 0 10px;
+    font-size:20px;
+  }
+
+  .company-switcher{
+    margin:8px 0 10px;
+    padding:10px;
+  }
+
+  .sidebar nav{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:6px;
+  }
+
+  .nav{
+    width:100%;
+    padding:10px;
+    font-size:13px;
+  }
+
+  .sidebar-user{
+    margin-top:12px;
+    padding:10px 0 0;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(120px,.7fr);
+    gap:5px 10px;
+    align-items:center;
+  }
+
+  .sidebar-user strong,
+  .sidebar-user span{
+    grid-column:1;
+  }
+
+  .sidebar-user button{
+    grid-column:2;
+    margin-top:0;
+  }
+
+  .version{
+    margin-top:9px;
+  }
+
+  main{
+    margin-left:0;
+    width:100%;
+    padding:18px 14px 30px;
+  }
+
+  header{
+    flex-direction:column;
+    gap:10px;
+    margin-bottom:18px;
+  }
+
+  header .status{
+    align-self:flex-start;
+    max-width:100%;
+  }
+
+  h1{
+    font-size:25px;
+    line-height:1.12;
+  }
+
+  .panel,
+  .card{
+    border-radius:11px;
+  }
+
+  .panel{padding:14px}
+  .card{padding:15px}
+
+  .panel-title{
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:flex-start;
+  }
+
+  .panel-title > div{
+    min-width:0;
+  }
+
+  .dashboard-kpis,
+  .product-kpis,
+  .supplier-kpis,
+  .kpis.five{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+  }
+
+  .card strong{
+    font-size:22px;
+    overflow-wrap:anywhere;
+  }
+
+  .dashboard-bottom,
+  .detail-columns,
+  .supplier-detail-grid{
+    grid-template-columns:1fr;
+  }
+
+  .detail-summary{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .meta-grid{
+    grid-template-columns:1fr;
+  }
+
+  .products-toolbar{
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+
+  .products-count{
+    grid-column:auto;
+    text-align:left;
+    padding-bottom:0;
+  }
+
+  .upload-row{
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .upload-row > *,
+  .upload-row input,
+  #uploadBtn,
+  #priceListUploadBtn{
+    width:100%;
+    max-width:100%;
+  }
+
+  .supplier-select-group{
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .supplier-select-group select,
+  .new-supplier-btn{
+    width:100%;
+    min-width:0;
+  }
+
+  .listino-upload-row select{
+    min-width:0;
+    width:100%;
+  }
+
+  .document-filter-bar{
+    gap:6px;
+  }
+
+  .doc-filter{
+    flex:1 1 auto;
+    text-align:center;
+  }
+
+  .dashboard-inbox-table{
+    overflow:visible;
+  }
+
+  .dashboard-inbox-row,
+  .dashboard-invoice-row{
+    border-radius:9px;
+    margin-bottom:7px;
+    background:#fafbfc;
+  }
+
+  .dashboard-anomaly-table{
+    font-size:12px;
+  }
+
+  .dashboard-anomaly-table td{
+    padding:10px 6px;
+  }
+
+  .ask{
+    align-items:stretch;
+  }
+
+  .ask input{
+    min-width:0;
+  }
+
+  .ask button{
+    min-height:42px;
+  }
+
+  .company-modal{
+    padding:12px;
+  }
+
+  .company-modal-card{
+    max-height:92vh;
+    overflow-y:auto;
+    padding:18px;
+  }
+
+  .auth-screen{
+    padding:12px;
+  }
+
+  .auth-card{
+    padding:22px 18px;
+  }
+
+  .platform-admin-screen{
+    padding:14px;
+  }
+}
+
+/* Telefoni molto stretti */
+@media (max-width:460px){
+  .sidebar nav{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .sidebar-user{
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .sidebar-user strong,
+  .sidebar-user span,
+  .sidebar-user button{
+    width:100%;
+  }
+
+  .dashboard-kpis,
+  .product-kpis,
+  .supplier-kpis,
+  .kpis.five,
+  .detail-summary{
+    grid-template-columns:1fr;
+  }
+
+  .panel-title{
+    flex-direction:column;
+  }
+
+  .panel-title > button,
+  .document-detail-actions,
+  .document-detail-actions > button{
+    max-width:100%;
+  }
+
+  .company-modal-actions{
+    flex-direction:column-reverse;
+  }
+
+  .company-modal-actions button{
+    width:100%;
+  }
+}
