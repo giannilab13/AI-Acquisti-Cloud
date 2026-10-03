@@ -1,5 +1,5 @@
 (function(){
-  const UI_VERSION='1.4C2.4';
+  const UI_VERSION='1.4C2.5';
 
   function ensureResponsiveStylesheet(){
     if(document.querySelector('link[href="/static/responsive.css"]')) return;
@@ -9,7 +9,16 @@
     document.head.appendChild(link);
   }
 
+  function ensureSmartPriceListScript(){
+    if(document.querySelector('script[src="/static/smart-pricelist-ui.js"]')) return;
+    const script=document.createElement('script');
+    script.src='/static/smart-pricelist-ui.js';
+    script.defer=true;
+    document.head.appendChild(script);
+  }
+
   ensureResponsiveStylesheet();
+  ensureSmartPriceListScript();
 
   const statusLabels={
     IMPORTATA:'Importata',
