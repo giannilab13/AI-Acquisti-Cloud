@@ -12,7 +12,10 @@ let currentUser = null;
 async function getJSON(url, options={}){
   const finalOptions={...options};
   const headers=new Headers(finalOptions.headers || {});
-  if(activeCompanyId && !url.startsWith('/api/platform/')){
+  const platformWithoutCompany =
+    url.startsWith('/api/platform/admin/')
+    || url === '/api/platform/companies';
+  if(activeCompanyId && !platformWithoutCompany){
     headers.set('X-Company-ID', String(activeCompanyId));
   }
   finalOptions.headers=headers;
@@ -60,6 +63,7 @@ async function refreshCurrentView(){
     await loadPriceListSuppliers();
     await loadPriceLists();
   }
+  if(active.id==='usersView') await loadCompanyUsers();
   if(active.id==='productsView') await loadProductsPage();
   if(active.id==='suppliersView') await loadSuppliersPage();
 }
