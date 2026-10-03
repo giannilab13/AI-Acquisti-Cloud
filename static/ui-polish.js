@@ -1,5 +1,15 @@
 (function(){
-  const UI_VERSION='1.4C2.3';
+  const UI_VERSION='1.4C2.4';
+
+  function ensureResponsiveStylesheet(){
+    if(document.querySelector('link[href="/static/responsive.css"]')) return;
+    const link=document.createElement('link');
+    link.rel='stylesheet';
+    link.href='/static/responsive.css';
+    document.head.appendChild(link);
+  }
+
+  ensureResponsiveStylesheet();
 
   const statusLabels={
     IMPORTATA:'Importata',
