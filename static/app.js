@@ -346,22 +346,74 @@ async function loadCompanyUsers(){
 
     el.innerHTML=`<table>
       <thead><tr>
-        <th>Nome</th>
-        <th>Email</th>
-        <th>Ruolo</th>
-        <th>Stato</th>
+        <th>Nome</th><th>Email</th><th>Ruolo</th><th>Stato</th><th>Azioni</th>
       </tr></thead>
-      <tbody>${rows.map(u=>`<tr>
-        <td>${u.full_name||'—'}</td>
-        <td>${u.email}</td>
-        <td>${u.role==='ADMIN'?'Amministratore':'Operatore'}</td>
-        <td>${u.status==='ACTIVE'?'Attivo':u.status}</td>
-      </tr>`).join('')}</tbody>
+      <tbody>${rows.map(u=>{
+        const active=u.status==='ACTIVE';
+        const isSelf=Number(u.id)===Number(currentUser?.id);
+        return `<tr>
+          <td>${u.full_name||'—'}</td>
+          <td>${u.email}</td>
+          <td>
+            <select class="company-user-role" data-user-id="${u.id}" ${isSelf?'disabled':''}>
+              <option value="OPERATOR" ${u.role==='OPERATOR'?'selected':''}>Operatore</option>
+              <option value="ADMIN" ${u.role==='ADMIN'?'selected':''}>Amministratore</option>
+            </select>
+          </td>
+          <td>${active?'Attivo':'Disattivato'}</td>
+          <td>
+            <div class="document-detail-actions">
+              <button type="button" class="secondary company-user-status-btn"
+                data-user-id="${u.id}" data-next-status="${active?'INACTIVE':'ACTIVE'}"
+                ${isSelf && active ? 'disabled' : ''}>${active?'Disattiva':'Riattiva'}</button>
+              <button type="button" class="secondary company-user-reset-btn" data-user-id="${u.id}">Reset password</button>
+            </div>
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
     </table>`;
+
+    el.querySelectorAll('.company-user-role').forEach(sel=>{
+      sel.addEventListener('change',()=>updateCompanyUserRole(Number(sel.dataset.userId),sel.value));
+    });
+    el.querySelectorAll('.company-user-status-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>setCompanyUserStatus(Number(btn.dataset.userId),btn.dataset.nextStatus));
+    });
+    el.querySelectorAll('.company-user-reset-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>resetCompanyUserPassword(Number(btn.dataset.userId)));
+    });
   }catch(e){
     formBtn.disabled=true;
     el.innerHTML=`<div class="empty-state">${e.message||e}</div>`;
   }
+}
+
+async function updateCompanyUserRole(userId,role){
+  try{
+    await getJSON(`/api/platform/company-users/${userId}/role`,{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})
+    });
+    await loadCompanyUsers();
+  }catch(e){ alert(e.message||e); await loadCompanyUsers(); }
+}
+
+async function setCompanyUserStatus(userId,status){
+  const action=status==='ACTIVE'?'riattivare':'disattivare';
+  if(!confirm(`Confermi di voler ${action} questo utente?`))return;
+  try{
+    await getJSON(`/api/platform/company-users/${userId}/status`,{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})
+    });
+    await loadCompanyUsers();
+  }catch(e){ alert(e.message||e); }
+}
+
+async function resetCompanyUserPassword(userId){
+  if(!confirm('Generare una nuova password temporanea per questo utente?'))return;
+  try{
+    const data=await getJSON(`/api/platform/company-users/${userId}/reset-password`,{method:'POST'});
+    alert('Password temporanea:\n\n'+data.temporary_password+'\n\nCopiala e comunicala all’utente con un canale sicuro.');
+  }catch(e){ alert(e.message||e); }
 }
 
 async function createCompanyUser(){

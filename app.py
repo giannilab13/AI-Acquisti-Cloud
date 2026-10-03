@@ -25,7 +25,10 @@ from db import (
     list_user_companies,
     next_text_id,
     reset_active_company,
+    reset_company_user_password,
     set_active_company,
+    set_company_user_status,
+    update_company_user_role,
     user_has_company,
 )
 from xml_importer import import_xml_file
@@ -35,7 +38,7 @@ from ai_service import ask_ai
 
 load_dotenv()
 
-app = FastAPI(title="AI Acquisti Cloud", version="1.4C2.1")
+app = FastAPI(title="AI Acquisti Cloud", version="1.4C2.2")
 BASE_DIR = Path(__file__).parent
 COOKIE_SECURE = bool(os.getenv("RAILWAY_ENVIRONMENT_ID")) or os.getenv("COOKIE_SECURE", "").lower() in {"1", "true", "yes"}
 init_platform_db()
@@ -266,6 +269,51 @@ def platform_create_company_user(payload: dict, request: Request):
     except ValueError as exc:
         raise HTTPException(400, str(exc))
 
+
+
+
+@app.post("/api/platform/company-users/{user_id}/role")
+def platform_update_company_user_role(user_id: int, payload: dict, request: Request):
+    if request.state.company_role != "ADMIN":
+        raise HTTPException(403, "Solo un amministratore può gestire gli utenti.")
+    try:
+        return update_company_user_role(
+            company_id=request.state.company_id,
+            user_id=user_id,
+            role=payload.get("role"),
+            acting_user_id=request.state.user["id"],
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.post("/api/platform/company-users/{user_id}/status")
+def platform_set_company_user_status(user_id: int, payload: dict, request: Request):
+    if request.state.company_role != "ADMIN":
+        raise HTTPException(403, "Solo un amministratore può gestire gli utenti.")
+    try:
+        return set_company_user_status(
+            company_id=request.state.company_id,
+            user_id=user_id,
+            status=payload.get("status"),
+            acting_user_id=request.state.user["id"],
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.post("/api/platform/company-users/{user_id}/reset-password")
+def platform_reset_company_user_password(user_id: int, request: Request):
+    if request.state.company_role != "ADMIN":
+        raise HTTPException(403, "Solo un amministratore può gestire gli utenti.")
+    try:
+        temporary_password = reset_company_user_password(
+            company_id=request.state.company_id,
+            user_id=user_id,
+        )
+        return {"ok": True, "temporary_password": temporary_password}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
 
 
 def euro(v):
