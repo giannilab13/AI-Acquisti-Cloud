@@ -603,6 +603,40 @@ async function loadProductHistory(id){
 }
 const dashboardProductSelect=document.getElementById('productSelect'); if(dashboardProductSelect) dashboardProductSelect.addEventListener('change',e=>loadProductHistory(e.target.value));
 
+function showAiResponseWindow(answer){
+  let modal=document.getElementById('aiResponseModal');
+
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='aiResponseModal';
+    modal.className='ai-response-modal hidden';
+    modal.innerHTML=`
+      <div class="ai-response-modal-card" role="dialog" aria-modal="true" aria-labelledby="aiResponseModalTitle">
+        <div class="ai-response-modal-header">
+          <h2 id="aiResponseModalTitle">Risposta AI</h2>
+          <button type="button" class="secondary ai-response-modal-close">Chiudi</button>
+        </div>
+        <div class="ai-response-modal-body"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.querySelector('.ai-response-modal-close').addEventListener('click',hideAiResponseWindow);
+    modal.addEventListener('click',e=>{if(e.target===modal)hideAiResponseWindow();});
+  }
+
+  modal.querySelector('.ai-response-modal-body').textContent=answer||'Nessuna risposta.';
+  modal.classList.remove('hidden');
+}
+
+function hideAiResponseWindow(){
+  document.getElementById('aiResponseModal')?.classList.add('hidden');
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape')hideAiResponseWindow();
+});
+
 async function ask(){
   const input=document.getElementById('question');
   const btn=document.getElementById('askBtn');
@@ -625,8 +659,10 @@ async function ask(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({question:q})
     });
+    const answer=data.answer||'Nessuna risposta.';
     const waiting=document.getElementById(waitingId);
-    if(waiting) waiting.innerHTML=(data.answer||'Nessuna risposta.').replace(/\n/g,'<br>');
+    if(waiting) waiting.innerHTML=answer.replace(/\n/g,'<br>');
+    showAiResponseWindow(answer);
   }catch(err){
     const waiting=document.getElementById(waitingId);
     if(waiting) waiting.innerHTML=`<strong>AI non disponibile.</strong><br>${err.message||err}`;
