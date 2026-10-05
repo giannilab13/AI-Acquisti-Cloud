@@ -78,6 +78,8 @@ async function selectCompany(companyId){
 
   // Chiude eventuali dettagli appartenenti alla precedente azienda.
   document.getElementById('docDetailPanel')?.classList.add('hidden');
+  document.getElementById('ddtDetailPanel')?.classList.add('hidden');
+  document.body.classList.remove('document-modal-open');
   document.getElementById('priceListDetailPanel')?.classList.add('hidden');
 
   await refreshCurrentView();
@@ -647,7 +649,11 @@ function hideAiResponseWindow(){
 }
 
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape')hideAiResponseWindow();
+  if(e.key==='Escape'){
+    hideAiResponseWindow();
+    if(!document.getElementById('docDetailPanel')?.classList.contains('hidden')) window.closeDocumentDetail?.();
+    if(!document.getElementById('ddtDetailPanel')?.classList.contains('hidden')) window.closeDdtDetail?.();
+  }
 });
 
 async function ask(){
@@ -903,13 +909,17 @@ async function loadDdt(){
 window.closeDdtDetail=()=>{
   const panel=document.getElementById('ddtDetailPanel');
   if(panel)panel.classList.add('hidden');
+  document.body.classList.remove('document-modal-open');
 };
 
 window.showDdt=async id=>{
   const data=await getJSON(`/api/ddt/${id}`);
   const d=data.delivery_note;
   const panel=document.getElementById('ddtDetailPanel');
+  document.getElementById('docDetailPanel')?.classList.add('hidden');
   panel.classList.remove('hidden');
+  document.body.classList.add('document-modal-open');
+  document.getElementById('ddtDetailTitle').textContent=`DDT · ${d.ddt_number||'SENZA NUMERO'}`;
   document.getElementById('ddtDetailMeta').innerHTML=`${ddtStatusBadge(d.status)} <span>· ID ${d.id}</span>`;
   const review=d.status==='DA_VERIFICARE'
     ? `<div class="document-status-strip review"><strong>Da verificare</strong><span>${(d.review_reason||'Controllare i dati letti dalla foto.').replace(/\n/g,' · ')}</span></div>`
@@ -933,7 +943,7 @@ window.showDdt=async id=>{
         <td>${l.product_name||l.product_id||'—'}</td><td><strong>${l.quantity}</strong> ${l.unit||''}</td>
       </tr>`).join('')}</tbody>
     </table>`;
-  panel.scrollIntoView({behavior:'smooth'});
+  panel.scrollTop=0;
 };
 
 document.getElementById('ddtUploadBtn').addEventListener('click',uploadDdt);
@@ -1002,15 +1012,15 @@ document.querySelectorAll('.doc-filter').forEach(btn=>{
 window.closeDocumentDetail=()=>{
   const panel=document.getElementById('docDetailPanel');
   if(panel)panel.classList.add('hidden');
-
-  const table=document.getElementById('documentsTable');
-  if(table){
-    setTimeout(()=>table.scrollIntoView({behavior:'smooth',block:'start'}),50);
-  }
+  document.body.classList.remove('document-modal-open');
 };
 
 window.showDocument=async id=>{
-  const data=await getJSON(`/api/documents/${id}`), d=data.document, panel=document.getElementById('docDetailPanel'); panel.classList.remove('hidden');
+  const data=await getJSON(`/api/documents/${id}`), d=data.document, panel=document.getElementById('docDetailPanel');
+  document.getElementById('ddtDetailPanel')?.classList.add('hidden');
+  panel.classList.remove('hidden');
+  document.body.classList.add('document-modal-open');
+  document.getElementById('docDetailTitle').textContent=`FATTURA · ${d.document_number||'SENZA NUMERO'}`;
   document.getElementById('docDetailMeta').innerHTML=`<div class="detail-status-meta">${statusBadge(d.status)}${workflowBadge(d.workflow_status)}<span>· ID ${d.id}</span></div>`;
   const isPending=(d.workflow_status||'DA_GESTIRE')==='DA_GESTIRE';
 
@@ -1140,7 +1150,7 @@ window.showDocument=async id=>{
     </tr>`).join('')}</tbody>
   </table>
   ${finalAction}`;
-  panel.scrollIntoView({behavior:'smooth'});
+  panel.scrollTop=0;
 };
 
 window.confirmDocument=async id=>{

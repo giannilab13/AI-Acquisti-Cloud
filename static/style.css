@@ -598,6 +598,64 @@ th{color:var(--muted);font-weight:600}
   box-shadow:inset 3px 0 0 #8b5bb5;
 }
 
+/* Dettaglio Fattura / DDT in finestra dedicata */
+body.document-modal-open{
+  overflow:hidden;
+}
+
+.document-detail-modal{
+  position:fixed;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  z-index:1200;
+  width:min(1200px,calc(100vw - 48px));
+  max-height:86vh;
+  overflow-y:auto;
+  margin:0;
+  border:1px solid #d9e0e8;
+  border-radius:16px;
+  box-shadow:0 24px 70px rgba(15,23,42,.24),0 0 0 100vmax rgba(15,23,42,.38);
+}
+
+.document-detail-modal .document-detail-title{
+  position:sticky;
+  top:-18px;
+  z-index:4;
+  margin:-18px -18px 18px;
+  padding:16px 18px;
+  background:#fff;
+  border-bottom:1px solid var(--line);
+}
+
+.document-detail-modal .document-detail-title h2{
+  font-size:18px;
+  letter-spacing:.015em;
+}
+
+.document-detail-modal #docDetail,
+.document-detail-modal #ddtDetail{
+  overflow-x:auto;
+}
+
+@media(max-width:700px){
+  .document-detail-modal{
+    width:calc(100vw - 16px);
+    max-height:92vh;
+    padding:14px;
+  }
+  .document-detail-modal .document-detail-title{
+    top:-14px;
+    margin:-14px -14px 14px;
+    padding:14px;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .document-detail-modal .document-detail-actions{
+    align-items:flex-end;
+  }
+}
+
 .dashboard-inbox-empty{
   display:flex;
   flex-direction:column;

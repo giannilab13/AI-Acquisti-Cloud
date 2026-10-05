@@ -167,9 +167,9 @@
         <div id="documentsTable"></div>
       </section>
 
-      <section id="docDetailPanel" class="panel hidden detail-panel">
+      <section id="docDetailPanel" class="panel hidden detail-panel document-detail-modal" role="dialog" aria-modal="true" aria-labelledby="docDetailTitle">
         <div class="panel-title document-detail-title">
-          <h2>Dettaglio documento</h2>
+          <h2 id="docDetailTitle">FATTURA</h2>
           <div class="document-detail-actions">
             <span id="docDetailMeta"></span>
             <button type="button" class="secondary close-document-view-btn" onclick="closeDocumentDetail()">Chiudi</button>
@@ -189,9 +189,9 @@
         <div id="ddtTable"></div>
       </section>
 
-      <section id="ddtDetailPanel" class="panel hidden detail-panel">
+      <section id="ddtDetailPanel" class="panel hidden detail-panel document-detail-modal" role="dialog" aria-modal="true" aria-labelledby="ddtDetailTitle">
         <div class="panel-title document-detail-title">
-          <h2>Dettaglio DDT</h2>
+          <h2 id="ddtDetailTitle">DDT</h2>
           <div class="document-detail-actions">
             <span id="ddtDetailMeta"></span>
             <button type="button" class="secondary" onclick="closeDdtDetail()">Chiudi</button>
