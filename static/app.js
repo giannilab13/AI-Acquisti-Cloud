@@ -58,7 +58,10 @@ async function refreshCurrentView(){
   const active=document.querySelector('.view.active-view');
   if(!active)return;
   if(active.id==='dashboardView') await loadDashboard();
-  if(active.id==='documentsView') await loadDocuments();
+  if(active.id==='documentsView'){
+    await loadDocuments();
+    await loadDdt();
+  }
   if(active.id==='priceListsView'){
     await loadPriceListSuppliers();
     await loadPriceLists();
@@ -461,7 +464,7 @@ document.querySelectorAll('.nav[data-view]').forEach(btn=>{
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active-view'));
     document.getElementById(btn.dataset.view).classList.add('active-view');
     if(btn.dataset.view==='dashboardView') loadDashboard();
-    if(btn.dataset.view==='documentsView') loadDocuments();
+    if(btn.dataset.view==='documentsView'){ loadDocuments(); loadDdt(); }
     if(btn.dataset.view==='priceListsView'){ loadPriceListSuppliers(); loadPriceLists(); }
     if(btn.dataset.view==='usersView') loadCompanyUsers();
     if(btn.dataset.view==='productsView') loadProductsPage();
@@ -580,8 +583,8 @@ async function loadDashboardAnomalies(){
           <small>${r.document_date || ''}</small>
         </td>
         <td>${r.anomaly || 'Differenza rispetto al listino'}</td>
-        <td class="impact-col ${Number(r.impact||0)>0 ? 'variance-bad' : 'variance-good'}">
-          ${Number(r.impact||0)>0 ? '+' : ''}${fmtEuro(r.impact)}
+        <td class="impact-col ${r.kind==='DDT' ? '' : (Number(r.impact||0)>0 ? 'variance-bad' : 'variance-good')}">
+          ${r.kind==='DDT' ? '—' : `${Number(r.impact||0)>0 ? '+' : ''}${fmtEuro(r.impact)}`}
         </td>
       </tr>`).join('')}
     </tbody>
@@ -800,6 +803,132 @@ function renderImportResults(rows,total,counts,processed){
 document.getElementById('uploadBtn').addEventListener('click',uploadXML);
 document.getElementById('refreshDocs').addEventListener('click',loadDocuments);
 
+function ddtStatusBadge(status){
+  const labels={
+    'IN_ATTESA_FATTURA':'In attesa fattura',
+    'COLLEGATO':'Collegato a fattura',
+    'DA_VERIFICARE':'Da verificare',
+    'DUPLICATO':'Duplicato',
+    'ERRORE':'Errore'
+  };
+  const cls=status==='COLLEGATO' ? 'status-ok'
+    : status==='DA_VERIFICARE' || status==='ERRORE' ? 'status-anomaly'
+      : 'status-neutral';
+  return `<span class="document-status ${cls}">${labels[status]||status||'—'}</span>`;
+}
+
+async function uploadDdt(){
+  const input=document.getElementById('ddtFile');
+  const files=[...input.files];
+  const result=document.getElementById('ddtUploadResult');
+  if(!files.length){
+    result.innerHTML='<div class="result-error">Seleziona almeno un DDT JPG, PNG o PDF.</div>';
+    return;
+  }
+
+  const btn=document.getElementById('ddtUploadBtn');
+  btn.disabled=true;
+  const rows=[];
+  result.innerHTML=`<div class="multi-import-progress">Preparazione di ${files.length} DDT…</div>`;
+
+  for(let i=0;i<files.length;i++){
+    const file=files[i];
+    btn.textContent=`Importazione ${i+1}/${files.length}…`;
+    const fd=new FormData();
+    fd.append('file',file);
+    try{
+      const r=await getJSON('/api/ddt/upload',{method:'POST',body:fd});
+      rows.push({
+        file:file.name,
+        status:r.status || (r.duplicate?'DUPLICATO':'IN_ATTESA_FATTURA'),
+        supplier:r.supplier || '',
+        number:r.ddt_number || '',
+        reason:r.review_reason || r.message || ''
+      });
+    }catch(e){
+      rows.push({file:file.name,status:'ERRORE',supplier:'',number:'',reason:e.message||String(e)});
+    }
+
+    result.innerHTML=`<div class="multi-import-summary">
+      <div class="multi-import-head"><strong>Elaborati ${i+1} di ${files.length} DDT</strong></div>
+      <div class="multi-import-list">
+        ${rows.map(r=>`<div class="multi-import-row">
+          <div class="multi-file"><strong>${r.file}</strong><small>${[r.supplier,r.number].filter(Boolean).join(' · ')}</small></div>
+          <div>${ddtStatusBadge(r.status)}</div>
+          <div class="multi-note">${(r.reason||'').replace(/\n/g,' · ')}</div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  input.value='';
+  btn.disabled=false;
+  btn.textContent='Importa DDT';
+  await loadDdt();
+  await loadDocuments();
+  await loadDashboard();
+}
+
+async function loadDdt(){
+  const el=document.getElementById('ddtTable');
+  if(!el)return;
+  const rows=await getJSON('/api/ddt');
+  if(!rows.length){
+    el.innerHTML='<div class="empty-state">Nessun DDT acquisito.</div>';
+    return;
+  }
+  el.innerHTML=`<table>
+    <thead><tr><th>Data</th><th>Fornitore</th><th>DDT</th><th>Righe</th><th>Origine</th><th>Stato</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr class="clickable" onclick="showDdt(${r.id})">
+      <td>${r.ddt_date||'—'}</td>
+      <td>${r.supplier||'—'}</td>
+      <td><strong>${r.ddt_number||'—'}</strong></td>
+      <td>${r.lines_count||0}</td>
+      <td>${r.source==='IMAGE_AI'?'Foto AI':'PDF AI'}</td>
+      <td>${ddtStatusBadge(r.status)}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+window.closeDdtDetail=()=>{
+  const panel=document.getElementById('ddtDetailPanel');
+  if(panel)panel.classList.add('hidden');
+};
+
+window.showDdt=async id=>{
+  const data=await getJSON(`/api/ddt/${id}`);
+  const d=data.delivery_note;
+  const panel=document.getElementById('ddtDetailPanel');
+  panel.classList.remove('hidden');
+  document.getElementById('ddtDetailMeta').innerHTML=`${ddtStatusBadge(d.status)} <span>· ID ${d.id}</span>`;
+  const review=d.status==='DA_VERIFICARE'
+    ? `<div class="document-status-strip review"><strong>Da verificare</strong><span>${(d.review_reason||'Controllare i dati letti dalla foto.').replace(/\n/g,' · ')}</span></div>`
+    : '';
+  const linked=data.linked_invoices||[];
+  const linkBox=linked.length
+    ? `<div class="document-status-strip ready"><strong>Fattura collegata</strong><span>${linked.map(x=>`${x.document_number||'—'} · ${x.document_date||''}`).join(' · ')}</span></div>`
+    : `<div class="document-status-strip closed"><strong>In attesa di fattura</strong><span>Il DDT verrà collegato quando verrà importata la fattura che lo richiama.</span></div>`;
+
+  document.getElementById('ddtDetail').innerHTML=`${review}${linkBox}
+    <div class="meta-grid">
+      <div class="meta-box"><span>Fornitore</span><strong>${d.supplier||'—'}</strong></div>
+      <div class="meta-box"><span>P.IVA</span><strong>${d.vat_number||'—'}</strong></div>
+      <div class="meta-box"><span>DDT</span><strong>${d.ddt_number||'—'} · ${d.ddt_date||'—'}</strong></div>
+      <div class="meta-box"><span>Origine</span><strong>${d.source==='IMAGE_AI'?'Foto AI':'PDF AI'}</strong></div>
+    </div>
+    <table>
+      <thead><tr><th>Riga</th><th>Codice articolo</th><th>Descrizione</th><th>Prodotto associato</th><th>Quantità</th></tr></thead>
+      <tbody>${data.lines.map(l=>`<tr>
+        <td>${l.line_number}</td><td>${l.supplier_code||'—'}</td><td>${l.original_description||'—'}</td>
+        <td>${l.product_name||l.product_id||'—'}</td><td><strong>${l.quantity}</strong> ${l.unit||''}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  panel.scrollIntoView({behavior:'smooth'});
+};
+
+document.getElementById('ddtUploadBtn').addEventListener('click',uploadDdt);
+document.getElementById('refreshDdt').addEventListener('click',loadDdt);
+
 let documentsCache=[];
 let currentDocumentFilter='ALL';
 
@@ -895,6 +1024,34 @@ window.showDocument=async id=>{
             <span>Il documento resta disponibile nello storico.</span>
           </div>`;
 
+  const ddt=data.ddt_reconciliation||{};
+  let ddtBox='';
+  if(Number(ddt.references_count||0)>0){
+    const missing=(ddt.references||[]).filter(x=>!x.delivery_note_id);
+    const checkRows=ddt.checks||[];
+    const ok=ddt.status==='OK';
+    const title=ok ? 'Controllo DDT / Fattura: OK' : 'Controllo DDT / Fattura: da verificare';
+    const summary=ok
+      ? `${ddt.linked_count} DDT collegati · prodotti e quantità corrispondono.`
+      : `${ddt.linked_count||0}/${ddt.references_count||0} DDT collegati · ${ddt.differences_count||0} differenze prodotto/quantità.`;
+    const missingHtml=missing.length
+      ? `<div class="ddt-missing-list"><strong>DDT non ancora acquisiti:</strong> ${missing.map(x=>`${x.reference_number}${x.reference_date?' ('+x.reference_date+')':''}`).join(', ')}</div>`
+      : '';
+    const checksHtml=checkRows.length
+      ? `<table class="ddt-check-table">
+          <thead><tr><th>Prodotto</th><th>Quantità DDT</th><th>Quantità fattura</th><th>Differenza</th><th>Esito</th></tr></thead>
+          <tbody>${checkRows.map(x=>`<tr class="${x.status==='OK'?'':'invoice-line-anomaly'}">
+            <td>${x.product_name||x.product_id||'—'}</td>
+            <td>${Number(x.ddt_quantity||0)}</td>
+            <td>${Number(x.invoice_quantity||0)}</td>
+            <td>${Number(x.quantity_difference||0)}</td>
+            <td>${x.status==='OK'?'<span class="check-pill ok">OK</span>':`<span class="check-pill bad">${x.status.replaceAll('_',' ')}</span>`}</td>
+          </tr>`).join('')}</tbody>
+        </table>`
+      : '';
+    ddtBox=`<div class="document-status-strip ${ok?'ready':'anomaly'}"><strong>${title}</strong><span>${summary}</span></div>${missingHtml}${checksHtml}`;
+  }
+
   const finalAction=d.status==='DA_VERIFICARE' && isPending
     ? `<div class="document-final-action">
         <div class="document-final-copy">
@@ -933,6 +1090,7 @@ window.showDocument=async id=>{
     <div class="meta-box"><span>Documento</span><strong>${d.document_number||''} · ${d.document_date||''}</strong></div>
     <div class="meta-box"><span>Totale</span><strong>${fmtEuro(d.total_amount)}</strong></div>
   </div>
+  ${ddtBox}
   <table>
     <thead><tr>
       <th>Riga</th>

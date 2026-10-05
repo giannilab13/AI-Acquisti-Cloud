@@ -73,6 +73,9 @@ Schema obbligatorio:
   "document_number": "",
   "currency": "EUR",
   "total_amount": 0.0,
+  "delivery_notes": [
+    {"number": "", "date": "YYYY-MM-DD"}
+  ],
   "lines": [
     {
       "line_number": 1,
@@ -94,6 +97,7 @@ Schema obbligatorio:
 REGOLE:
 - Non inventare dati mancanti. Usa stringa vuota o 0 quando non leggibile.
 - Usa TD01 per fattura ordinaria e TD04 per nota di credito quando riconoscibile.
+- In delivery_notes inserisci tutti i DDT esplicitamente richiamati dalla fattura, con numero e data. Se non ci sono riferimenti DDT usa [].
 - list_price = prezzo unitario prima degli sconti, se indicato.
 - discount_1 e discount_2 sono percentuali, non importi.
 - Gli sconti concatenati restano separati.
@@ -150,6 +154,15 @@ def _normalise_ai_invoice(data):
     data["document_number"] = str(data.get("document_number") or "").strip()
     data["currency"] = str(data.get("currency") or "EUR").strip().upper()
     data["total_amount"] = _num(data.get("total_amount"), 0.0)
+    delivery_notes = []
+    for ref in data.get("delivery_notes") or []:
+        if not isinstance(ref, dict):
+            continue
+        number = str(ref.get("number") or "").strip()
+        date = str(ref.get("date") or "").strip()
+        if number:
+            delivery_notes.append({"number": number, "date": date})
+    data["delivery_notes"] = delivery_notes
     return data
 
 
@@ -311,6 +324,14 @@ def import_pdf_file(file_name: str, pdf_bytes: bytes):
         (status, '\n'.join(review_reasons) if review_reasons else None, document_id),
     )
 
+    from ddt_importer import store_invoice_ddt_references
+    store_invoice_ddt_references(
+        document_id,
+        supplier_id,
+        parsed.get('delivery_notes') or [],
+        conn=conn,
+    )
+
     conn.commit()
     conn.close()
     return {
@@ -321,5 +342,6 @@ def import_pdf_file(file_name: str, pdf_bytes: bytes):
         'document_type': parsed['document_type'], 'total_amount': parsed['total_amount'],
         'lines_count': len(parsed['lines']), 'ancillary_lines': ancillary_lines,
         'created_products': created_products, 'anomaly_count': anomaly_count,
+        'ddt_references_count': len(parsed.get('delivery_notes') or []),
         'review_reason': '\n'.join(review_reasons) if review_reasons else None,
     }

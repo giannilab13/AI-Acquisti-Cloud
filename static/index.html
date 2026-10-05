@@ -122,7 +122,7 @@
 
     <section id="documentsView" class="view">
       <header>
-        <div><h1>Documenti</h1><p>Importazione fatture XML FatturaPA e PDF con AI</p></div>
+        <div><h1>Documenti</h1><p>Importazione fatture e DDT con lettura AI</p></div>
         <div class="status">Cloud 1.4C2.2</div>
       </header>
 
@@ -135,6 +135,20 @@
           <button id="uploadBtn">Importa fatture</button>
         </div>
         <div id="uploadResult"></div>
+      </section>
+
+      <section class="panel upload-panel ddt-upload-panel">
+        <div class="panel-title">
+          <div>
+            <h2>Importa DDT da foto / PDF</h2>
+            <p class="sub">Carica dal PC uno o più DDT in formato JPG, PNG o PDF. L'AI legge fornitore, numero, data, prodotti e quantità; il prezzo non è richiesto.</p>
+          </div>
+        </div>
+        <div class="upload-row">
+          <input id="ddtFile" type="file" multiple accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf">
+          <button id="ddtUploadBtn">Importa DDT</button>
+        </div>
+        <div id="ddtUploadResult"></div>
       </section>
 
       <section class="panel">
@@ -162,6 +176,28 @@
           </div>
         </div>
         <div id="docDetail"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <div>
+            <h2>DDT acquisiti</h2>
+            <p class="sub">I DDT restano in attesa della fattura e vengono collegati automaticamente quando la fattura li richiama.</p>
+          </div>
+          <button class="secondary" id="refreshDdt">Aggiorna</button>
+        </div>
+        <div id="ddtTable"></div>
+      </section>
+
+      <section id="ddtDetailPanel" class="panel hidden detail-panel">
+        <div class="panel-title document-detail-title">
+          <h2>Dettaglio DDT</h2>
+          <div class="document-detail-actions">
+            <span id="ddtDetailMeta"></span>
+            <button type="button" class="secondary" onclick="closeDdtDetail()">Chiudi</button>
+          </div>
+        </div>
+        <div id="ddtDetail"></div>
       </section>
     </section>
 

@@ -33,12 +33,13 @@ from db import (
 )
 from xml_importer import import_xml_file
 from pdf_importer import import_pdf_file
+from ddt_importer import import_ddt_file, invoice_ddt_summary
 from spreadsheet_importer import import_price_list_file
 from ai_service import ask_ai
 
 load_dotenv()
 
-app = FastAPI(title="AI Acquisti Cloud", version="1.4C2.2")
+app = FastAPI(title="AI Acquisti Cloud", version="1.4C2.8")
 BASE_DIR = Path(__file__).parent
 COOKIE_SECURE = bool(os.getenv("RAILWAY_ENVIRONMENT_ID")) or os.getenv("COOKIE_SECURE", "").lower() in {"1", "true", "yes"}
 init_platform_db()
@@ -852,6 +853,31 @@ def dashboard_anomalies():
         ORDER BY d.id DESC, ABS(COALESCE(dl.price_variance_total,0)) DESC
         """
     ).fetchall()
+    ddt_rows = conn.execute(
+        """
+        SELECT d.id AS document_id,d.document_number,d.document_date,s.name AS supplier,
+               p.name AS product_name,c.ddt_quantity,c.invoice_quantity,c.quantity_difference,c.status
+        FROM invoice_ddt_checks c
+        JOIN documents d ON d.id=c.invoice_document_id
+        JOIN suppliers s ON s.id=d.supplier_id
+        LEFT JOIN products p ON p.id=c.product_id
+        WHERE c.status<>'OK'
+          AND COALESCE(d.workflow_status,'DA_GESTIRE')='DA_GESTIRE'
+        ORDER BY d.id DESC,p.name
+        """
+    ).fetchall()
+    missing_ddt_rows = conn.execute(
+        """
+        SELECT d.id AS document_id,d.document_number,d.document_date,s.name AS supplier,
+               r.reference_number,r.reference_date
+        FROM invoice_ddt_references r
+        JOIN documents d ON d.id=r.invoice_document_id
+        JOIN suppliers s ON s.id=d.supplier_id
+        WHERE r.delivery_note_id IS NULL
+          AND COALESCE(d.workflow_status,'DA_GESTIRE')='DA_GESTIRE'
+        ORDER BY d.id DESC,r.id
+        """
+    ).fetchall()
     conn.close()
 
     grouped = {}
@@ -899,7 +925,44 @@ def dashboard_anomalies():
         item["impact"] = round(item["impact"], 2)
         result.append(item)
 
-    result.sort(key=lambda x: abs(x["impact"]), reverse=True)
+    by_document = {item["document_id"]: item for item in result}
+
+    def add_ddt_message(row, message):
+        r = dict(row)
+        doc_id = r["document_id"]
+        if doc_id in by_document:
+            current = by_document[doc_id]
+            if "DDT:" not in current["anomaly"]:
+                current["anomaly"] += f" · DDT: {message}"
+            return
+        item = {
+            "document_id": doc_id,
+            "document_number": r["document_number"],
+            "document_date": r["document_date"],
+            "supplier": r["supplier"],
+            "anomaly": f"DDT: {message}",
+            "impact": 0.0,
+            "kind": "DDT",
+        }
+        by_document[doc_id] = item
+        result.append(item)
+
+    for row in ddt_rows:
+        r = dict(row)
+        add_ddt_message(
+            r,
+            f"{r['product_name'] or 'Prodotto'}: consegnati {float(r['ddt_quantity'] or 0):g}, "
+            f"fatturati {float(r['invoice_quantity'] or 0):g}",
+        )
+
+    for row in missing_ddt_rows:
+        r = dict(row)
+        add_ddt_message(
+            r,
+            f"DDT {r['reference_number']} non ancora acquisito",
+        )
+
+    result.sort(key=lambda x: ("DDT:" in x["anomaly"], abs(x["impact"])), reverse=True)
     return result[:5]
 
 
@@ -974,8 +1037,91 @@ def document_detail(document_id: int):
         """,
         (document_id,),
     ).fetchall()
+    ddt = invoice_ddt_summary(document_id, conn=conn)
     conn.close()
-    return {"document": dict(doc), "lines": [dict(r) for r in lines]}
+    return {
+        "document": dict(doc),
+        "lines": [dict(r) for r in lines],
+        "ddt_reconciliation": ddt,
+    }
+
+
+@app.get("/api/ddt")
+def delivery_notes():
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT n.id,n.file_name,n.ddt_number,n.ddt_date,n.source,n.status,
+               n.review_reason,n.imported_at,s.name AS supplier,
+               (SELECT COUNT(*) FROM delivery_note_lines l WHERE l.delivery_note_id=n.id) AS lines_count
+        FROM delivery_notes n
+        LEFT JOIN suppliers s ON s.id=n.supplier_id
+        ORDER BY n.id DESC
+        LIMIT 200
+        """
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@app.get("/api/ddt/{delivery_note_id}")
+def delivery_note_detail(delivery_note_id: int):
+    conn = get_connection()
+    note = conn.execute(
+        """
+        SELECT n.*,s.name AS supplier,s.vat_number
+        FROM delivery_notes n
+        LEFT JOIN suppliers s ON s.id=n.supplier_id
+        WHERE n.id=?
+        """,
+        (delivery_note_id,),
+    ).fetchone()
+    if not note:
+        conn.close()
+        raise HTTPException(404, "DDT non trovato")
+    lines = conn.execute(
+        """
+        SELECT l.*,p.name AS product_name
+        FROM delivery_note_lines l
+        LEFT JOIN products p ON p.id=l.product_id
+        WHERE l.delivery_note_id=?
+        ORDER BY l.line_number
+        """,
+        (delivery_note_id,),
+    ).fetchall()
+    linked = conn.execute(
+        """
+        SELECT r.invoice_document_id,d.document_number,d.document_date
+        FROM invoice_ddt_references r
+        JOIN documents d ON d.id=r.invoice_document_id
+        WHERE r.delivery_note_id=?
+        ORDER BY d.document_date,d.id
+        """,
+        (delivery_note_id,),
+    ).fetchall()
+    conn.close()
+    return {
+        "delivery_note": dict(note),
+        "lines": [dict(r) for r in lines],
+        "linked_invoices": [dict(r) for r in linked],
+    }
+
+
+@app.post("/api/ddt/upload")
+async def upload_delivery_note(file: UploadFile = File(...)):
+    filename = file.filename or "ddt"
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {".jpg", ".jpeg", ".png", ".pdf"}:
+        raise HTTPException(400, "Formato non supportato. Usa un DDT JPG, PNG oppure PDF.")
+    content = await file.read()
+    if len(content) > 15_000_000:
+        raise HTTPException(400, "File troppo grande (massimo 15 MB).")
+    try:
+        return import_ddt_file(filename, content)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(400, f"Importazione DDT non riuscita: {exc}")
 
 
 @app.post("/api/documents/upload")

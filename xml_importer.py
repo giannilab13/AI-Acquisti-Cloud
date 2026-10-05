@@ -111,12 +111,20 @@ def parse_invoice(xml_bytes):
     supplier_name = supplier_name or "Fornitore non identificato"
 
     body = bodies[0]
-    dgd = path(body, "DatiGenerali", "DatiGeneraliDocumento")
+    dati_generali = child(body, "DatiGenerali")
+    dgd = child(dati_generali, "DatiGeneraliDocumento")
     document_type = text_at(dgd, "TipoDocumento")
     document_date = text_at(dgd, "Data")
     document_number = text_at(dgd, "Numero")
     currency = text_at(dgd, "Divisa", default="EUR")
     total_amount = to_float(text_at(dgd, "ImportoTotaleDocumento"), 0.0)
+
+    delivery_notes = []
+    for ddt in children(dati_generali, "DatiDDT"):
+        number = text_at(ddt, "NumeroDDT")
+        date = text_at(ddt, "DataDDT")
+        if number:
+            delivery_notes.append({"number": number, "date": date})
 
     rows = []
     dati_beni = child(body, "DatiBeniServizi")
@@ -159,6 +167,7 @@ def parse_invoice(xml_bytes):
         "document_number": document_number,
         "currency": currency,
         "total_amount": total_amount,
+        "delivery_notes": delivery_notes,
         "lines": rows,
     }
 
@@ -310,6 +319,16 @@ def import_xml_file(file_name, xml_bytes):
         (status, "\n".join(review_reasons) if review_reasons else None, document_id),
     )
 
+    # Collega gli eventuali DDT citati nella FatturaPA e prepara il controllo
+    # prodotti/quantita senza interferire con il controllo prezzi-listino.
+    from ddt_importer import store_invoice_ddt_references
+    store_invoice_ddt_references(
+        document_id,
+        supplier_id,
+        parsed.get("delivery_notes") or [],
+        conn=conn,
+    )
+
     conn.commit()
     conn.close()
     return {
@@ -326,5 +345,6 @@ def import_xml_file(file_name, xml_bytes):
         "lines_count": len(parsed["lines"]),
         "created_products": created_products,
         "anomaly_count": anomaly_count,
+        "ddt_references_count": len(parsed.get("delivery_notes") or []),
         "review_reason": "\n".join(review_reasons) if review_reasons else None,
     }
