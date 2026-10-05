@@ -39,6 +39,21 @@ class DdtLogicTests(unittest.TestCase):
         reasons = _quality_reasons(parsed)
         self.assertTrue(any("Quantita riga 1" in item for item in reasons))
 
+    def test_missing_supplier_code_is_not_a_review_reason(self):
+        parsed = _normalise_ddt({
+            "supplier": {"name": "AD.EL s.r.l.", "vat": "02865880278"},
+            "ddt_number": "736",
+            "ddt_date": "2025-09-10",
+            "lines": [{
+                "description": "TELECOMANDI LOCKER LAUNDRY",
+                "supplier_code": "",
+                "quantity": 6,
+                "unit": "pz",
+            }],
+            "uncertain_fields": ["lines[0].supplier_code"],
+        })
+        self.assertEqual(_quality_reasons(parsed), [])
+
     def test_fatturapa_extracts_ddt_references(self):
         xml = b"""<?xml version="1.0" encoding="UTF-8"?>
         <FatturaElettronica>

@@ -33,7 +33,7 @@ from db import (
 )
 from xml_importer import import_xml_file
 from pdf_importer import import_pdf_file
-from ddt_importer import import_ddt_file, invoice_ddt_summary
+from ddt_importer import cleanup_optional_ddt_review_flags, import_ddt_file, invoice_ddt_summary
 from spreadsheet_importer import import_price_list_file
 from ai_service import ask_ai
 
@@ -1049,6 +1049,7 @@ def document_detail(document_id: int):
 @app.get("/api/ddt")
 def delivery_notes():
     conn = get_connection()
+    cleanup_optional_ddt_review_flags(conn)
     rows = conn.execute(
         """
         SELECT n.id,n.file_name,n.ddt_number,n.ddt_date,n.source,n.status,
@@ -1067,6 +1068,7 @@ def delivery_notes():
 @app.get("/api/ddt/{delivery_note_id}")
 def delivery_note_detail(delivery_note_id: int):
     conn = get_connection()
+    cleanup_optional_ddt_review_flags(conn)
     note = conn.execute(
         """
         SELECT n.*,s.name AS supplier,s.vat_number

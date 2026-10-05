@@ -42,6 +42,7 @@ REGOLE:
 - Il documento deve essere un DDT/documento di trasporto o documento di consegna equivalente.
 - Estrai numero e data del DDT, non il numero di un eventuale ordine cliente.
 - Per ogni riga merce estrai codice articolo se presente, descrizione e quantita consegnata.
+- Il codice articolo fornitore e facoltativo: se sul DDT non e presente lascia supplier_code vuoto e NON segnalarlo in uncertain_fields.
 - Il prezzo non e richiesto e non deve essere inventato se assente.
 - Non inserire trasporto, note, colli o testi descrittivi come righe prodotto, salvo che siano chiaramente articoli consegnati.
 - Se una quantita non e leggibile usa 0 e segnala il campo come incerto.
@@ -131,8 +132,55 @@ def _quality_reasons(parsed):
     for line in parsed["lines"]:
         if float(line["quantity"] or 0) <= 0:
             reasons.append(f"Quantita riga {line['line_number']} da verificare")
-    reasons.extend(parsed.get("uncertain_fields") or [])
+    reasons.extend(
+        field for field in (parsed.get("uncertain_fields") or [])
+        if not _is_optional_uncertain_field(field)
+    )
     return list(dict.fromkeys(reasons))
+
+
+def _is_optional_uncertain_field(value):
+    key = str(value or "").strip().lower().replace(" ", "_")
+    return "supplier_code" in key or "codice_articolo" in key
+
+
+def cleanup_optional_ddt_review_flags(conn):
+    """Rimuove falsi 'Da verificare' dovuti al solo codice articolo assente.
+
+    Serve anche per i DDT importati durante i primi test della C2.8.
+    Non modifica i DDT che hanno altri motivi reali di verifica.
+    """
+    rows = conn.execute(
+        """
+        SELECT id,review_reason
+        FROM delivery_notes
+        WHERE status='DA_VERIFICARE' AND review_reason IS NOT NULL
+        """
+    ).fetchall()
+    changed = False
+    for row in rows:
+        reasons = [x.strip() for x in str(row["review_reason"] or "").splitlines() if x.strip()]
+        required = [x for x in reasons if not _is_optional_uncertain_field(x)]
+        if required == reasons:
+            continue
+        if required:
+            conn.execute(
+                "UPDATE delivery_notes SET review_reason=? WHERE id=?",
+                ("\n".join(required), row["id"]),
+            )
+        else:
+            linked = conn.execute(
+                "SELECT 1 FROM invoice_ddt_references WHERE delivery_note_id=? LIMIT 1",
+                (row["id"],),
+            ).fetchone()
+            conn.execute(
+                "UPDATE delivery_notes SET status=?,review_reason=NULL WHERE id=?",
+                ("COLLEGATO" if linked else "IN_ATTESA_FATTURA", row["id"]),
+            )
+        changed = True
+    if changed:
+        conn.commit()
+    return changed
 
 
 def parse_ddt_with_ai(file_name, file_bytes):
