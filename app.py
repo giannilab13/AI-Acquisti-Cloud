@@ -380,6 +380,14 @@ def summary():
         WHERE COALESCE(workflow_status,'DA_GESTIRE')='DA_GESTIRE'
         """
     ).fetchone()["c"]
+    pending_ddt = cur.execute(
+        """
+        SELECT COUNT(*) AS c
+        FROM delivery_notes
+        WHERE status IN ('IN_ATTESA_FATTURA','DA_VERIFICARE')
+        """
+    ).fetchone()["c"]
+    pending += pending_ddt
     conn.close()
     return {
         "current_month": current_month,
@@ -775,7 +783,7 @@ def dashboard_inbox():
     l'azione richiesta dall'utente.
     """
     conn = get_connection()
-    rows = conn.execute(
+    invoice_rows = conn.execute(
         """
         SELECT
             d.id,
@@ -796,8 +804,43 @@ def dashboard_inbox():
         LIMIT 20
         """
     ).fetchall()
+    ddt_rows = conn.execute(
+        """
+        SELECT
+            n.id,
+            n.ddt_number AS document_number,
+            n.ddt_date AS document_date,
+            n.status,
+            n.source,
+            n.review_reason,
+            n.imported_at,
+            s.name AS supplier
+        FROM delivery_notes n
+        LEFT JOIN suppliers s ON s.id=n.supplier_id
+        WHERE n.status IN ('IN_ATTESA_FATTURA','DA_VERIFICARE')
+        ORDER BY n.imported_at DESC, n.id DESC
+        LIMIT 20
+        """
+    ).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+
+    rows = []
+    for row in invoice_rows:
+        item = dict(row)
+        item["kind"] = "INVOICE"
+        rows.append(item)
+    for row in ddt_rows:
+        item = dict(row)
+        item.update({
+            "kind": "DDT",
+            "document_type": "DDT",
+            "total_amount": None,
+            "workflow_status": "DA_GESTIRE",
+        })
+        rows.append(item)
+
+    rows.sort(key=lambda x: (x.get("imported_at") or "", x.get("id") or 0), reverse=True)
+    return rows[:20]
 
 
 @app.get("/api/documents/review-dashboard")

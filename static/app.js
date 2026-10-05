@@ -519,6 +519,16 @@ function documentTypeLabel(type){
   return labels[type] || type || 'Documento';
 }
 
+function dashboardDocumentTypeBadge(kind,type){
+  if(kind==='DDT') return '<span class="document-kind-badge kind-ddt">DDT</span>';
+  return `<span class="document-kind-badge kind-invoice">${documentTypeLabel(type)}</span>`;
+}
+
+function dashboardDocumentStatus(r){
+  if(r.kind==='DDT') return ddtStatusBadge(r.status);
+  return statusBadge(r.status);
+}
+
 async function loadDashboardInbox(){
   const el=document.getElementById('dashboardInbox');
   if(!el)return;
@@ -546,13 +556,13 @@ async function loadDashboardInbox(){
       <span>Totale</span>
       <span>Stato</span>
     </div>
-    ${rows.map(r=>`<div class="dashboard-inbox-row" onclick="openDashboardDocument(${r.id})" title="Apri il documento">
+    ${rows.map(r=>`<div class="dashboard-inbox-row ${r.kind==='DDT'?'dashboard-ddt-row':'dashboard-invoice-kind-row'}" onclick="openDashboardItem('${r.kind||'INVOICE'}',${r.id})" title="Apri ${r.kind==='DDT'?'il DDT':'la fattura'}">
       <span>${r.document_date||'—'}</span>
       <span><strong>${r.supplier||'—'}</strong></span>
-      <span>${documentTypeLabel(r.document_type)}</span>
+      <span>${dashboardDocumentTypeBadge(r.kind,r.document_type)}</span>
       <span><strong>${r.document_number||'—'}</strong></span>
-      <span>${fmtEuro(r.total_amount)}</span>
-      <span>${statusBadge(r.status)}</span>
+      <span>${r.kind==='DDT'?'—':fmtEuro(r.total_amount)}</span>
+      <span>${dashboardDocumentStatus(r)}</span>
     </div>`).join('')}
   </div>`;
 }
@@ -1211,6 +1221,18 @@ window.openDashboardDocument=async id=>{
   setTimeout(()=>{
     const detail=document.getElementById('docDetail');
     if(detail)detail.scrollIntoView({behavior:'smooth',block:'start'});
+  },80);
+};
+
+window.openDashboardItem=async (kind,id)=>{
+  if(kind!=='DDT') return window.openDashboardDocument(id);
+  const nav=document.querySelector('[data-view="documentsView"]');
+  if(nav)nav.click();
+  await loadDdt();
+  await window.showDdt(id);
+  setTimeout(()=>{
+    const panel=document.getElementById('ddtDetailPanel');
+    if(panel)panel.scrollIntoView({behavior:'smooth',block:'start'});
   },80);
 };
 

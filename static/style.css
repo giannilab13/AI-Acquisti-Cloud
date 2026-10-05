@@ -571,6 +571,33 @@ th{color:var(--muted);font-weight:600}
   background:#f7f9fb;
 }
 
+.document-kind-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:72px;
+  padding:5px 9px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.035em;
+  text-transform:uppercase;
+}
+
+.document-kind-badge.kind-invoice{
+  background:#e9f0ff;
+  color:#2456a6;
+}
+
+.document-kind-badge.kind-ddt{
+  background:#f2eafe;
+  color:#6c3ca0;
+}
+
+.dashboard-ddt-row{
+  box-shadow:inset 3px 0 0 #8b5bb5;
+}
+
 .dashboard-inbox-empty{
   display:flex;
   flex-direction:column;
