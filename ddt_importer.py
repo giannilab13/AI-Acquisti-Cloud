@@ -23,6 +23,7 @@ Leggi ESCLUSIVAMENTE il DDT fornito dall'utente e restituisci SOLO JSON valido, 
 Schema obbligatorio:
 {
   "supplier": {"name": "", "vat": ""},
+  "recipient": {"name": "", "vat": "", "tax_code": ""},
   "ddt_number": "",
   "ddt_date": "YYYY-MM-DD",
   "lines": [
@@ -39,6 +40,8 @@ Schema obbligatorio:
 
 REGOLE:
 - Non inventare mai dati mancanti o poco leggibili: usa stringa vuota o 0 e indica il campo in uncertain_fields.
+- recipient e l'azienda destinataria della merce, NON il fornitore che emette il DDT.
+- Estrai ragione sociale e P.IVA del destinatario quando sono presenti: servono a verificare che il DDT appartenga all'azienda corretta.
 - Il documento deve essere un DDT/documento di trasporto o documento di consegna equivalente.
 - Estrai numero e data del DDT, non il numero di un eventuale ordine cliente.
 - Per ogni riga merce estrai codice articolo se presente, descrizione e quantita consegnata.
@@ -92,6 +95,12 @@ def _normalise_ddt(data):
     data["supplier"] = {
         "name": str(supplier.get("name") or "").strip(),
         "vat": str(supplier.get("vat") or "").replace(" ", "").strip(),
+    }
+    recipient = data.get("recipient") or {}
+    data["recipient"] = {
+        "name": str(recipient.get("name") or "").strip(),
+        "vat": str(recipient.get("vat") or "").replace(" ", "").strip(),
+        "tax_code": str(recipient.get("tax_code") or "").replace(" ", "").strip(),
     }
     data["ddt_number"] = str(data.get("ddt_number") or "").strip()
     data["ddt_date"] = str(data.get("ddt_date") or "").strip()
@@ -441,6 +450,12 @@ def import_ddt_file(file_name, file_bytes):
         }
 
     parsed = parse_ddt_with_ai(file_name, file_bytes)
+    from document_ownership import assert_document_belongs_to_active_company
+    try:
+        assert_document_belongs_to_active_company(parsed.get("recipient"))
+    except Exception:
+        conn.close()
+        raise
     reasons = _quality_reasons(parsed)
 
     supplier_id = None
@@ -515,7 +530,7 @@ def invoice_ddt_summary(invoice_document_id, conn=None):
         refs = conn.execute(
             """
             SELECT r.id,r.reference_number,r.reference_date,r.status,r.delivery_note_id,
-                   n.ddt_number,n.ddt_date,n.file_name
+                   n.ddt_number,n.ddt_date,n.file_name,n.status AS delivery_note_status
             FROM invoice_ddt_references r
             LEFT JOIN delivery_notes n ON n.id=r.delivery_note_id
             WHERE r.invoice_document_id=?

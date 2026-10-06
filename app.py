@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import mimetypes
 
 from dotenv import load_dotenv
 
@@ -29,6 +30,7 @@ from db import (
     set_active_company,
     set_company_user_status,
     update_company_user_role,
+    update_company_identity,
     user_has_company,
 )
 from xml_importer import import_xml_file
@@ -36,10 +38,11 @@ from pdf_importer import import_pdf_file
 from ddt_importer import cleanup_optional_ddt_review_flags, import_ddt_file, invoice_ddt_summary
 from spreadsheet_importer import import_price_list_file
 from ai_service import ask_ai
+from storage_service import read_document_bytes
 
 load_dotenv()
 
-app = FastAPI(title="AI Acquisti Cloud", version="1.4C2.8")
+app = FastAPI(title="AI Acquisti Cloud", version="1.4C2.9")
 BASE_DIR = Path(__file__).parent
 COOKIE_SECURE = bool(os.getenv("RAILWAY_ENVIRONMENT_ID")) or os.getenv("COOKIE_SECURE", "").lower() in {"1", "true", "yes"}
 init_platform_db()
@@ -220,16 +223,19 @@ def platform_admin_create_company(payload: dict, request: Request):
     admin_email = str(payload.get("admin_email") or "").strip()
     admin_password = str(payload.get("admin_password") or "")
     admin_name = str(payload.get("admin_name") or "").strip()
+    company_vat = str(payload.get("vat_number") or "").strip()
 
     if not admin_email:
         raise HTTPException(400, "Inserisci l'email dell'amministratore aziendale.")
     if len(admin_password) < 8:
         raise HTTPException(400, "La password dell'amministratore aziendale deve avere almeno 8 caratteri.")
+    if not company_vat:
+        raise HTTPException(400, "Inserisci la P.IVA dell'azienda: serve per verificare i documenti importati.")
 
     try:
         company = create_company(
             name=payload.get("name"),
-            vat_number=payload.get("vat_number", ""),
+            vat_number=company_vat,
             sector=payload.get("sector", ""),
         )
         company_admin = create_company_user(
@@ -252,6 +258,25 @@ def platform_company_users(request: Request):
     if request.state.company_role != "ADMIN":
         raise HTTPException(403, "Solo un amministratore può gestire gli utenti.")
     return list_company_users(request.state.company_id)
+
+
+@app.get("/api/platform/company-profile")
+def platform_company_profile(request: Request):
+    return get_company(request.state.company_id)
+
+
+@app.put("/api/platform/company-profile")
+def platform_update_company_profile(payload: dict, request: Request):
+    if request.state.company_role != "ADMIN":
+        raise HTTPException(403, "Solo un amministratore puo modificare i dati dell'azienda.")
+    try:
+        return update_company_identity(
+            request.state.company_id,
+            name=payload.get("name"),
+            vat_number=payload.get("vat_number"),
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @app.post("/api/platform/company-users")
@@ -1081,12 +1106,66 @@ def document_detail(document_id: int):
         (document_id,),
     ).fetchall()
     ddt = invoice_ddt_summary(document_id, conn=conn)
+    line_items = [dict(r) for r in lines]
+    product_lines = [r for r in line_items if r.get("line_type", "PRODUCT") == "PRODUCT"]
+    price_differences = sum(1 for r in product_lines if r.get("price_check_status") == "DIFFERENZA")
+    price_ok = sum(1 for r in product_lines if r.get("price_check_status") == "OK")
+    without_price_list = sum(1 for r in product_lines if r.get("price_check_status") == "SENZA_LISTINO")
+
+    if price_differences or ddt.get("status") in {"DIFFERENZE", "DDT_MANCANTI"}:
+        overall_status = "ANOMALIE"
+        overall_label = "Ciclo con anomalie da verificare"
+    elif ddt.get("status") == "NESSUN_RIFERIMENTO" or without_price_list:
+        overall_status = "PARZIALE"
+        overall_label = "Controllo parziale"
+    else:
+        overall_status = "OK"
+        overall_label = "Ciclo controllato: tutto OK"
+
+    purchase_control = {
+        "status": overall_status,
+        "label": overall_label,
+        "ddt_status": ddt.get("status"),
+        "price_ok_count": price_ok,
+        "price_difference_count": price_differences,
+        "without_price_list_count": without_price_list,
+    }
     conn.close()
     return {
         "document": dict(doc),
-        "lines": [dict(r) for r in lines],
+        "lines": line_items,
         "ddt_reconciliation": ddt,
+        "purchase_control": purchase_control,
     }
+
+
+def _original_response(file_name, stored_path):
+    try:
+        content = read_document_bytes(stored_path)
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc))
+    except Exception:
+        raise HTTPException(404, "Documento originale non disponibile.")
+    safe_name = Path(file_name or "documento").name.replace('"', '')
+    media_type = mimetypes.guess_type(safe_name)[0] or "application/octet-stream"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'inline; filename="{safe_name}"'},
+    )
+
+
+@app.get("/api/documents/{document_id}/original")
+def document_original(document_id: int):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT file_name,stored_path FROM documents WHERE id=?",
+        (document_id,),
+    ).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(404, "Documento non trovato.")
+    return _original_response(row["file_name"], row["stored_path"])
 
 
 @app.get("/api/ddt")
@@ -1100,6 +1179,7 @@ def delivery_notes():
                (SELECT COUNT(*) FROM delivery_note_lines l WHERE l.delivery_note_id=n.id) AS lines_count
         FROM delivery_notes n
         LEFT JOIN suppliers s ON s.id=n.supplier_id
+        WHERE n.status IN ('IN_ATTESA_FATTURA','DA_VERIFICARE')
         ORDER BY n.id DESC
         LIMIT 200
         """
@@ -1150,6 +1230,19 @@ def delivery_note_detail(delivery_note_id: int):
         "lines": [dict(r) for r in lines],
         "linked_invoices": [dict(r) for r in linked],
     }
+
+
+@app.get("/api/ddt/{delivery_note_id}/original")
+def delivery_note_original(delivery_note_id: int):
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT file_name,stored_path FROM delivery_notes WHERE id=?",
+        (delivery_note_id,),
+    ).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(404, "DDT non trovato.")
+    return _original_response(row["file_name"], row["stored_path"])
 
 
 @app.post("/api/ddt/upload")

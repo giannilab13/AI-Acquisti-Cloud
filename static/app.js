@@ -27,6 +27,28 @@ async function getJSON(url, options={}){
   return data;
 }
 
+async function openOriginalDocument(url){
+  const popup=window.open('','_blank');
+  try{
+    const headers=new Headers();
+    if(activeCompanyId)headers.set('X-Company-ID',String(activeCompanyId));
+    const response=await fetch(url,{headers});
+    if(!response.ok){
+      let detail='Originale non disponibile.';
+      try{detail=(await response.json()).detail||detail}catch{}
+      throw new Error(detail);
+    }
+    const blob=await response.blob();
+    const objectUrl=URL.createObjectURL(blob);
+    if(popup)popup.location.href=objectUrl;
+    else window.location.href=objectUrl;
+    setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);
+  }catch(e){
+    if(popup)popup.close();
+    alert(e.message||e);
+  }
+}
+
 function showCompanyModal(force=false){
   const modal=document.getElementById('companyModal');
   modal.classList.remove('hidden');
@@ -66,7 +88,10 @@ async function refreshCurrentView(){
     await loadPriceListSuppliers();
     await loadPriceLists();
   }
-  if(active.id==='usersView') await loadCompanyUsers();
+  if(active.id==='usersView'){
+    await loadCompanyProfile();
+    await loadCompanyUsers();
+  }
   if(active.id==='productsView') await loadProductsPage();
   if(active.id==='suppliersView') await loadSuppliersPage();
 }
@@ -397,6 +422,50 @@ async function loadCompanyUsers(){
   }
 }
 
+async function loadCompanyProfile(){
+  const result=document.getElementById('companyProfileResult');
+  try{
+    const company=await getJSON('/api/platform/company-profile');
+    document.getElementById('companyProfileName').value=company?.name||'';
+    document.getElementById('companyProfileVat').value=company?.vat_number||'';
+    const membership=activeCompany();
+    const canEdit=membership?.role==='ADMIN';
+    document.getElementById('companyProfileName').disabled=!canEdit;
+    document.getElementById('companyProfileVat').disabled=!canEdit;
+    document.getElementById('saveCompanyProfileBtn').disabled=!canEdit;
+    result.innerHTML=company?.vat_number
+      ? '<div class="identity-ok">Identità configurata: il controllo di appartenenza documenti è attivo.</div>'
+      : '<div class="result-error">Inserisci la P.IVA prima di importare nuove fatture o DDT.</div>';
+  }catch(e){
+    result.innerHTML=`<div class="result-error">${e.message||e}</div>`;
+  }
+}
+
+async function saveCompanyProfile(){
+  const result=document.getElementById('companyProfileResult');
+  const btn=document.getElementById('saveCompanyProfileBtn');
+  btn.disabled=true;
+  try{
+    const company=await getJSON('/api/platform/company-profile',{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        name:document.getElementById('companyProfileName').value.trim(),
+        vat_number:document.getElementById('companyProfileVat').value.trim()
+      })
+    });
+    companiesCache=await getJSON('/api/platform/companies');
+    updateCompanyUI();
+    document.getElementById('companyProfileName').value=company.name||'';
+    document.getElementById('companyProfileVat').value=company.vat_number||'';
+    result.innerHTML='<div class="result-success">Identità azienda salvata. Controllo documenti attivo.</div>';
+  }catch(e){
+    result.innerHTML=`<div class="result-error">${e.message||e}</div>`;
+  }finally{
+    btn.disabled=false;
+  }
+}
+
 async function updateCompanyUserRole(userId,role){
   try{
     await getJSON(`/api/platform/company-users/${userId}/role`,{
@@ -468,7 +537,7 @@ document.querySelectorAll('.nav[data-view]').forEach(btn=>{
     if(btn.dataset.view==='dashboardView') loadDashboard();
     if(btn.dataset.view==='documentsView'){ loadDocuments(); loadDdt(); }
     if(btn.dataset.view==='priceListsView'){ loadPriceListSuppliers(); loadPriceLists(); }
-    if(btn.dataset.view==='usersView') loadCompanyUsers();
+    if(btn.dataset.view==='usersView'){ loadCompanyProfile(); loadCompanyUsers(); }
     if(btn.dataset.view==='productsView') loadProductsPage();
     if(btn.dataset.view==='suppliersView') loadSuppliersPage();
   });
@@ -890,7 +959,7 @@ async function loadDdt(){
   if(!el)return;
   const rows=await getJSON('/api/ddt');
   if(!rows.length){
-    el.innerHTML='<div class="empty-state">Nessun DDT acquisito.</div>';
+    el.innerHTML='<div class="empty-state">Nessun DDT in attesa.</div>';
     return;
   }
   el.innerHTML=`<table>
@@ -929,7 +998,8 @@ window.showDdt=async id=>{
     ? `<div class="document-status-strip ready"><strong>Fattura collegata</strong><span>${linked.map(x=>`${x.document_number||'—'} · ${x.document_date||''}`).join(' · ')}</span></div>`
     : `<div class="document-status-strip closed"><strong>In attesa di fattura</strong><span>Il DDT verrà collegato quando verrà importata la fattura che lo richiama.</span></div>`;
 
-  document.getElementById('ddtDetail').innerHTML=`${review}${linkBox}
+  const originalButton=`<div class="original-document-actions"><button type="button" class="secondary" onclick="openOriginalDocument('/api/ddt/${d.id}/original')">Visualizza DDT originale</button></div>`;
+  document.getElementById('ddtDetail').innerHTML=`${review}${linkBox}${originalButton}
     <div class="meta-grid">
       <div class="meta-box"><span>Fornitore</span><strong>${d.supplier||'—'}</strong></div>
       <div class="meta-box"><span>P.IVA</span><strong>${d.vat_number||'—'}</strong></div>
@@ -1045,6 +1115,43 @@ window.showDocument=async id=>{
           </div>`;
 
   const ddt=data.ddt_reconciliation||{};
+  const control=data.purchase_control||{};
+  const linkedDdt=(ddt.references||[]).filter(x=>x.delivery_note_id);
+  const overallClass=control.status==='OK'?'ok':control.status==='ANOMALIE'?'anomaly':'partial';
+  const overallIcon=control.status==='OK'?'✓':control.status==='ANOMALIE'?'!':'i';
+  const dossier=`<section class="invoice-dossier">
+    <div class="invoice-dossier-heading">
+      <div>
+        <span class="invoice-dossier-kicker">Scheda fattura completa</span>
+        <h3>${d.supplier||'Fornitore'} · ${d.document_number||'—'}</h3>
+      </div>
+      <div class="invoice-overall-status ${overallClass}"><strong>${overallIcon}</strong><span>${control.label||'Controllo disponibile'}</span></div>
+    </div>
+    <div class="invoice-dossier-grid">
+      <div class="dossier-card">
+        <span>Fattura</span>
+        <strong>${d.document_number||'—'} · ${d.document_date||'—'}</strong>
+        <button type="button" class="secondary" onclick="openOriginalDocument('/api/documents/${d.id}/original')">Visualizza fattura originale</button>
+      </div>
+      <div class="dossier-card">
+        <span>DDT collegati</span>
+        <strong>${ddt.linked_count||0} / ${ddt.references_count||0}</strong>
+        <small>${ddt.status==='OK'?'Prodotti e quantità corrispondono':ddt.status==='NESSUN_RIFERIMENTO'?'Nessun riferimento DDT in fattura':'Controllo DDT da completare'}</small>
+      </div>
+      <div class="dossier-card">
+        <span>Controllo listino</span>
+        <strong>${control.price_difference_count||0} differenze</strong>
+        <small>${control.price_ok_count||0} righe OK · ${control.without_price_list_count||0} senza listino</small>
+      </div>
+    </div>
+    ${linkedDdt.length?`<div class="linked-ddt-list">
+      <strong>DDT appartenenti a questa fattura</strong>
+      ${linkedDdt.map(x=>`<div class="linked-ddt-item">
+        <div><span class="document-kind-badge kind-ddt">DDT</span><strong>${x.ddt_number||x.reference_number||'—'}</strong><small>${x.ddt_date||x.reference_date||''}</small></div>
+        <button type="button" class="secondary" onclick="openOriginalDocument('/api/ddt/${x.delivery_note_id}/original')">Visualizza originale</button>
+      </div>`).join('')}
+    </div>`:''}
+  </section>`;
   let ddtBox='';
   if(Number(ddt.references_count||0)>0){
     const missing=(ddt.references||[]).filter(x=>!x.delivery_note_id);
@@ -1104,7 +1211,7 @@ window.showDocument=async id=>{
             <button class="confirm-document-btn document-closed-btn" disabled>Documento già chiuso</button>
           </div>`;
 
-  document.getElementById('docDetail').innerHTML=`${reviewBox}<div class="meta-grid">
+  document.getElementById('docDetail').innerHTML=`${reviewBox}${dossier}<div class="meta-grid">
     <div class="meta-box"><span>Fornitore</span><strong>${d.supplier||''}</strong></div>
     <div class="meta-box"><span>P.IVA</span><strong>${d.vat_number||''}</strong></div>
     <div class="meta-box"><span>Documento</span><strong>${d.document_number||''} · ${d.document_date||''}</strong></div>
@@ -1262,6 +1369,7 @@ document.getElementById('setupBtn').addEventListener('click',setupFirstAdmin);
 document.getElementById('loginBtn').addEventListener('click',login);
 document.getElementById('logoutBtn').addEventListener('click',logout);
 document.getElementById('createUserBtn').addEventListener('click',createCompanyUser);
+document.getElementById('saveCompanyProfileBtn').addEventListener('click',saveCompanyProfile);
 
 document.getElementById('setupPassword').addEventListener('keydown',e=>{
   if(e.key==='Enter')setupFirstAdmin();

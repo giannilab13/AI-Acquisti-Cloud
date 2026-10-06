@@ -68,6 +68,7 @@ Leggi ESCLUSIVAMENTE la fattura fornita dall'utente e restituisci SOLO JSON vali
 Schema obbligatorio:
 {
   "supplier": {"name": "", "vat": ""},
+  "recipient": {"name": "", "vat": "", "tax_code": ""},
   "document_type": "TD01",
   "document_date": "YYYY-MM-DD",
   "document_number": "",
@@ -96,6 +97,8 @@ Schema obbligatorio:
 
 REGOLE:
 - Non inventare dati mancanti. Usa stringa vuota o 0 quando non leggibile.
+- recipient e l'azienda/cliente a cui la fattura e intestata, NON il fornitore che la emette.
+- Estrai P.IVA e ragione sociale del destinatario quando presenti: servono a verificare che la fattura appartenga all'azienda corretta.
 - Usa TD01 per fattura ordinaria e TD04 per nota di credito quando riconoscibile.
 - In delivery_notes inserisci tutti i DDT esplicitamente richiamati dalla fattura, con numero e data. Se non ci sono riferimenti DDT usa [].
 - list_price = prezzo unitario prima degli sconti, se indicato.
@@ -148,6 +151,12 @@ def _normalise_ai_invoice(data):
     data["supplier"] = {
         "name": str(supplier.get("name") or "Fornitore non identificato").strip(),
         "vat": str(supplier.get("vat") or "").replace(" ", "").strip(),
+    }
+    recipient = data.get("recipient") or {}
+    data["recipient"] = {
+        "name": str(recipient.get("name") or "").strip(),
+        "vat": str(recipient.get("vat") or "").replace(" ", "").strip(),
+        "tax_code": str(recipient.get("tax_code") or "").replace(" ", "").strip(),
     }
     data["document_type"] = str(data.get("document_type") or "TD01").strip().upper()
     data["document_date"] = str(data.get("document_date") or "").strip()
@@ -246,6 +255,13 @@ def import_pdf_file(file_name: str, pdf_bytes: bytes):
             raise
         extraction_mode = "PDF_VISION_AI"
         parsed = parse_scanned_pdf_with_ai(file_name, pdf_bytes)
+
+    from document_ownership import assert_document_belongs_to_active_company
+    try:
+        assert_document_belongs_to_active_company(parsed.get('recipient'))
+    except Exception:
+        conn.close()
+        raise
 
     supplier_id, supplier_created = ensure_supplier(conn, parsed['supplier'])
 

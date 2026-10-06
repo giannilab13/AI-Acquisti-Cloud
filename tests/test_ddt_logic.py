@@ -7,9 +7,25 @@ from ddt_importer import (
     normalize_ddt_number,
 )
 from xml_importer import parse_invoice
+from document_ownership import validate_recipient
 
 
 class DdtLogicTests(unittest.TestCase):
+    def test_document_recipient_must_match_company(self):
+        company = {"name": "Azienda Demo S.r.l.", "vat_number": "IT12345678901"}
+        self.assertTrue(validate_recipient(company, {
+            "name": "AZIENDA DEMO SRL", "vat": "12345678901"
+        })[0])
+        self.assertFalse(validate_recipient(company, {
+            "name": "Altra Azienda S.r.l.", "vat": "IT99999999999"
+        })[0])
+
+    def test_document_recipient_name_is_fallback_when_vat_missing(self):
+        company = {"name": "Azienda Demo S.r.l.", "vat_number": "IT12345678901"}
+        self.assertTrue(validate_recipient(company, {
+            "name": "Azienda Demo SRL", "vat": ""
+        })[0])
+
     def test_photo_data_does_not_require_price(self):
         parsed = _normalise_ddt({
             "supplier": {"name": "Alfa Srl", "vat": "IT123"},
@@ -62,6 +78,10 @@ class DdtLogicTests(unittest.TestCase):
               <IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>123</IdCodice></IdFiscaleIVA>
               <Anagrafica><Denominazione>Alfa Srl</Denominazione></Anagrafica>
             </DatiAnagrafici></CedentePrestatore>
+            <CessionarioCommittente><DatiAnagrafici>
+              <IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>12345678901</IdCodice></IdFiscaleIVA>
+              <Anagrafica><Denominazione>Azienda Demo S.r.l.</Denominazione></Anagrafica>
+            </DatiAnagrafici></CessionarioCommittente>
           </FatturaElettronicaHeader>
           <FatturaElettronicaBody>
             <DatiGenerali>
@@ -84,6 +104,11 @@ class DdtLogicTests(unittest.TestCase):
             {"number": "25", "date": "2026-10-05"},
             {"number": "31", "date": "2026-10-12"},
         ])
+        self.assertEqual(parsed["recipient"], {
+            "name": "Azienda Demo S.r.l.",
+            "vat": "IT12345678901",
+            "tax_code": "",
+        })
 
     def test_quantity_comparison_finds_all_difference_types(self):
         checks = build_quantity_checks(

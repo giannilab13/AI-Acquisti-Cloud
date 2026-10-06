@@ -110,6 +110,18 @@ def parse_invoice(xml_bytes):
         ).strip()
     supplier_name = supplier_name or "Fornitore non identificato"
 
+    recipient_node = child(header, "CessionarioCommittente")
+    recipient_dati = child(recipient_node, "DatiAnagrafici")
+    recipient_anagrafica = child(recipient_dati, "Anagrafica")
+    recipient_vat_country = text_at(recipient_dati, "IdFiscaleIVA", "IdPaese")
+    recipient_vat_code = text_at(recipient_dati, "IdFiscaleIVA", "IdCodice")
+    recipient_vat = f"{recipient_vat_country}{recipient_vat_code}" if recipient_vat_code else ""
+    recipient_name = text_at(recipient_anagrafica, "Denominazione")
+    if not recipient_name:
+        recipient_name = " ".join(
+            x for x in [text_at(recipient_anagrafica, "Nome"), text_at(recipient_anagrafica, "Cognome")] if x
+        ).strip()
+
     body = bodies[0]
     dati_generali = child(body, "DatiGenerali")
     dgd = child(dati_generali, "DatiGeneraliDocumento")
@@ -162,6 +174,11 @@ def parse_invoice(xml_bytes):
 
     return {
         "supplier": {"name": supplier_name, "vat": vat},
+        "recipient": {
+            "name": recipient_name,
+            "vat": recipient_vat,
+            "tax_code": text_at(recipient_dati, "CodiceFiscale"),
+        },
         "document_type": document_type,
         "document_date": document_date,
         "document_number": document_number,
@@ -240,6 +257,12 @@ def import_xml_file(file_name, xml_bytes):
         return {"ok": False, "duplicate": True, "message": f"Documento già importato (ID {duplicate['id']})."}
 
     parsed = parse_invoice(xml_bytes)
+    from document_ownership import assert_document_belongs_to_active_company
+    try:
+        assert_document_belongs_to_active_company(parsed.get("recipient"))
+    except Exception:
+        conn.close()
+        raise
     supplier_id, supplier_created = ensure_supplier(conn, parsed["supplier"])
 
     stored_path = store_document_bytes(file_name, file_hash, xml_bytes)

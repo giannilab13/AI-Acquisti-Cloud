@@ -995,6 +995,33 @@ def get_company(company_id):
         conn.close()
 
 
+def update_company_identity(company_id, name, vat_number):
+    company_id = int(company_id)
+    name = str(name or "").strip()
+    vat_number = str(vat_number or "").strip().upper()
+    if not name:
+        raise ValueError("Inserisci la ragione sociale dell'azienda.")
+    if not vat_number:
+        raise ValueError("Inserisci la P.IVA dell'azienda.")
+
+    conn = get_platform_connection()
+    try:
+        duplicate = conn.execute(
+            "SELECT id,name FROM companies WHERE UPPER(vat_number)=UPPER(?) AND id<>?",
+            (vat_number, company_id),
+        ).fetchone()
+        if duplicate:
+            raise ValueError(f"La P.IVA e gia associata a {duplicate['name']}.")
+        conn.execute(
+            "UPDATE companies SET name=?,vat_number=? WHERE id=? AND status='ACTIVE'",
+            (name, vat_number, company_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return get_company(company_id)
+
+
 def create_company(name, vat_number="", sector=""):
     name = str(name or "").strip()
     vat_number = str(vat_number or "").strip().upper()

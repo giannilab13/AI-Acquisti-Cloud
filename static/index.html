@@ -181,8 +181,8 @@
       <section class="panel">
         <div class="panel-title">
           <div>
-            <h2>DDT acquisiti</h2>
-            <p class="sub">I DDT restano in attesa della fattura e vengono collegati automaticamente quando la fattura li richiama.</p>
+            <h2>DDT in attesa</h2>
+            <p class="sub">Qui restano solo i DDT in attesa di fattura o da verificare. Quelli collegati vengono conservati nella Scheda fattura.</p>
           </div>
           <button class="secondary" id="refreshDdt">Aggiorna</button>
         </div>
@@ -258,6 +258,29 @@
         </div>
         <div class="status">Cloud 1.4C2.2</div>
       </header>
+
+      <section class="panel company-identity-panel">
+        <div class="panel-title">
+          <div>
+            <h2>Identità azienda</h2>
+            <p class="sub">La P.IVA viene usata per accettare soltanto fatture e DDT appartenenti all'azienda selezionata.</p>
+          </div>
+        </div>
+        <div class="user-form-grid company-identity-grid">
+          <label>
+            Ragione sociale
+            <input id="companyProfileName" type="text">
+          </label>
+          <label>
+            Partita IVA
+            <input id="companyProfileVat" type="text" placeholder="Obbligatoria per importare documenti">
+          </label>
+        </div>
+        <div class="user-form-actions">
+          <div id="companyProfileResult"></div>
+          <button id="saveCompanyProfileBtn" type="button">Salva identità azienda</button>
+        </div>
+      </section>
 
       <section class="panel">
         <div class="panel-title">
@@ -433,7 +456,7 @@
           </div>
 
           <label>Nome azienda *<input id="platformCompanyName" type="text" placeholder="Es. Azienda Demo S.r.l."></label>
-          <label>Partita IVA<input id="platformCompanyVat" type="text" placeholder="Facoltativa"></label>
+          <label>Partita IVA *<input id="platformCompanyVat" type="text" placeholder="Obbligatoria per verificare i documenti"></label>
           <label>Settore<input id="platformCompanySector" type="text" placeholder="Es. Retail, Industria, Ristorazione"></label>
           <hr>
           <label>Nome amministratore aziendale<input id="platformCompanyAdminName" type="text" placeholder="Nome e cognome"></label>
@@ -534,8 +557,8 @@
       </label>
 
       <label>
-        Partita IVA
-        <input id="companyVat" type="text" placeholder="Facoltativa in questa fase">
+        Partita IVA *
+        <input id="companyVat" type="text" placeholder="Obbligatoria per verificare i documenti">
       </label>
 
       <label>

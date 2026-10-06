@@ -74,3 +74,30 @@ def store_document_bytes(filename: str, file_hash: str, content: bytes) -> str:
     stored_path = target_dir / f"{file_hash[:12]}_{safe_name}"
     stored_path.write_bytes(content)
     return str(stored_path)
+
+
+def read_document_bytes(stored_path: str) -> bytes:
+    """Legge un originale gia salvato, sia dal bucket sia dal fallback locale."""
+    stored_path = str(stored_path or "").strip()
+    if not stored_path:
+        raise FileNotFoundError("Originale non disponibile.")
+
+    if stored_path.startswith("s3://"):
+        cfg = _s3_config()
+        if not cfg:
+            raise FileNotFoundError("Archivio documenti non configurato.")
+        prefix = f"s3://{cfg['bucket']}/"
+        if not stored_path.startswith(prefix):
+            raise FileNotFoundError("Riferimento documento non valido.")
+        object_key = stored_path[len(prefix):]
+        expected_company = f"company_{get_active_company_id():06d}/documents/"
+        if not object_key.startswith(expected_company):
+            raise PermissionError("Documento appartenente a un'altra azienda.")
+        response = _client(cfg).get_object(Bucket=cfg["bucket"], Key=object_key)
+        return response["Body"].read()
+
+    path = Path(stored_path).resolve()
+    expected_root = (LOCAL_UPLOAD_ROOT / f"company_{get_active_company_id():06d}").resolve()
+    if expected_root not in path.parents:
+        raise PermissionError("Documento appartenente a un'altra azienda.")
+    return path.read_bytes()

@@ -97,11 +97,36 @@ th{color:var(--muted);font-weight:600}
 #uploadBtn:disabled,#ddtUploadBtn:disabled{opacity:.55;cursor:wait}
 .secondary{border:1px solid var(--line);background:#fff;color:var(--text);padding:7px 10px;border-radius:8px;cursor:pointer}
 .result-ok,.result-error{margin-top:14px;padding:12px;border-radius:9px;font-size:13px}.result-ok{background:#e7f5ef;color:#116b47}.result-error{background:#fde9e7;color:#9f2d26}
+.identity-ok{padding:10px 12px;border-radius:9px;background:#e7f5ef;color:#116b47;font-size:12px;font-weight:700}
 .clickable{cursor:pointer}.clickable:hover{background:#f7f9fb}.hidden{display:none}.detail-panel{margin-top:16px}
 .meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:15px}.meta-box{background:#f7f9fb;padding:10px;border-radius:8px}.meta-box span{display:block;color:var(--muted);font-size:11px}.meta-box strong{font-size:13px}
 .ddt-missing-list{margin:12px 0;padding:11px 12px;border-radius:8px;background:#fff1db;color:#8a4d00;font-size:13px}
 .ddt-check-table{margin:12px 0 18px}
+.original-document-actions{display:flex;justify-content:flex-end;margin:0 0 14px}
 @media(max-width:1200px){.kpis.five{grid-template-columns:repeat(3,1fr)}.meta-grid{grid-template-columns:repeat(2,1fr)}}
+
+.invoice-dossier{
+  margin:0 0 18px;
+  padding:16px;
+  border:1px solid #dbe2ea;
+  border-radius:13px;
+  background:#f8fafc;
+}
+.invoice-dossier-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:14px}
+.invoice-dossier-heading h3{margin:3px 0 0;font-size:17px}
+.invoice-dossier-kicker{color:var(--muted);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.invoice-overall-status{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:800}
+.invoice-overall-status strong{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;color:#fff}
+.invoice-overall-status.ok{background:#e7f5ef;color:#116b47}.invoice-overall-status.ok strong{background:#168357}
+.invoice-overall-status.anomaly{background:#fde9e7;color:#9f2d26}.invoice-overall-status.anomaly strong{background:#c6362c}
+.invoice-overall-status.partial{background:#fff1db;color:#8a4d00}.invoice-overall-status.partial strong{background:#c87800}
+.invoice-dossier-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.dossier-card{display:flex;flex-direction:column;gap:6px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.dossier-card>span,.dossier-card small{color:var(--muted);font-size:11px}.dossier-card button{align-self:flex-start;margin-top:3px}
+.linked-ddt-list{display:flex;flex-direction:column;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.linked-ddt-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 10px;background:#fff;border:1px solid var(--line);border-radius:9px}
+.linked-ddt-item>div{display:flex;align-items:center;gap:10px}.linked-ddt-item small{color:var(--muted)}
+@media(max-width:850px){.invoice-dossier-grid{grid-template-columns:1fr}.invoice-dossier-heading,.linked-ddt-item{align-items:flex-start;flex-direction:column}}
 
 
 /* MVP 0.3 - Prodotti */
