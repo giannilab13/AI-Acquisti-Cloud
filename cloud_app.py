@@ -8,7 +8,7 @@ from db import get_platform_connection, hash_password, verify_password
 from smart_price_list import smart_import_price_list
 
 
-app.version = "1.4C2.6"
+app.version = "1.4C2.9"
 
 
 @app.post("/api/auth/change-password")
