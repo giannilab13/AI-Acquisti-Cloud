@@ -445,6 +445,7 @@ th{color:var(--muted);font-weight:600}
   font-size:12px;
   line-height:1.4;
 }
+.remove-import-result{margin-top:8px}
 .multi-import-progress{
   margin-top:12px;
   padding:12px;

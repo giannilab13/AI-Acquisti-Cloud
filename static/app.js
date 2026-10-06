@@ -852,7 +852,14 @@ async function uploadXML(){
   btn.textContent='Importa fatture';
 
   await loadDocuments();
-  await loadDashboard();
+  const issues=results.filter(r=>r.status==='ERRORE' || r.status==='DUPLICATA');
+  if(issues.length){
+    result.innerHTML=renderImportIssues(issues,'FATTURA');
+    await loadDashboard();
+  }else{
+    result.innerHTML='';
+    navigateToView('dashboardView');
+  }
 }
 
 function renderImportResults(rows,total,counts,processed){
@@ -900,6 +907,41 @@ function ddtStatusBadge(status){
     : status==='DA_VERIFICARE' || status==='ERRORE' ? 'status-anomaly'
       : 'status-neutral';
   return `<span class="document-status ${cls}">${labels[status]||status||'—'}</span>`;
+}
+
+function navigateToView(viewId){
+  const btn=document.querySelector(`.nav[data-view="${viewId}"]`);
+  if(btn)btn.click();
+}
+
+function dismissImportResult(button){
+  const summary=button.closest('.multi-import-summary');
+  const row=button.closest('.multi-import-row');
+  if(row)row.remove();
+  if(summary && !summary.querySelector('.multi-import-row'))summary.remove();
+}
+
+function renderImportIssues(rows,kind){
+  const isDdt=kind==='DDT';
+  return `<div class="multi-import-summary">
+    <div class="multi-import-head">
+      <strong>Importazioni da controllare</strong>
+      <span>${rows.length} ${rows.length===1?'documento':'documenti'}</span>
+    </div>
+    <div class="multi-import-list">
+      ${rows.map(r=>`<div class="multi-import-row">
+        <div class="multi-file">
+          <strong>${r.file}</strong>
+          <small>${isDdt ? [r.supplier,r.number].filter(Boolean).join(' · ') : [r.supplier,r.document_number].filter(Boolean).join(' · ')}</small>
+        </div>
+        <div>${isDdt ? ddtStatusBadge(r.status) : statusBadge(r.status)}</div>
+        <div class="multi-note">
+          <div>${((isDdt ? r.reason : (r.message||r.review_reason))||'Controllare il documento.').replace(/\n/g,' · ')}</div>
+          <button type="button" class="secondary remove-import-result" onclick="dismissImportResult(this)">Rimuovi</button>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>`;
 }
 
 async function uploadDdt(){
@@ -951,7 +993,14 @@ async function uploadDdt(){
   btn.textContent='Importa DDT';
   await loadDdt();
   await loadDocuments();
-  await loadDashboard();
+  const issues=rows.filter(r=>r.status==='ERRORE' || r.status==='DUPLICATO');
+  if(issues.length){
+    result.innerHTML=renderImportIssues(issues,'DDT');
+    await loadDashboard();
+  }else{
+    result.innerHTML='';
+    navigateToView('dashboardView');
+  }
 }
 
 async function loadDdt(){
