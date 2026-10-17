@@ -164,7 +164,7 @@ def verify_document_anomaly(conn, document_id, anomaly_key, user, note=""):
             invoice_value,reference_value,difference_value,details_json,
             verified_at,verified_by_user_id,verified_by_name,verified_by_email,note
         )
-        VALUES(?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?)
+        VALUES(?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?)
         """,
         (
             document_id,
