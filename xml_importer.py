@@ -222,7 +222,7 @@ def ensure_product(conn, supplier_id, line):
             return row["product_id"], "CODICE_FORNITORE", False
 
     row = conn.execute(
-        "SELECT id FROM products WHERE UPPER(normalized_name)=? ORDER BY id LIMIT 1",
+        "SELECT id FROM products WHERE LOWER(normalized_name)=LOWER(?) ORDER BY id LIMIT 1",
         (normalized,),
     ).fetchone()
     if row:
