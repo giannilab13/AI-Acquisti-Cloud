@@ -39,10 +39,11 @@ from ddt_importer import cleanup_optional_ddt_review_flags, import_ddt_file, inv
 from spreadsheet_importer import import_price_list_file
 from ai_service import ask_ai
 from storage_service import read_document_bytes
+from anomaly_workflow import load_document_anomalies, open_document_anomalies, verify_document_anomaly
 
 load_dotenv()
 
-app = FastAPI(title="AI Acquisti Cloud", version="1.4C2.9")
+app = FastAPI(title="AI Acquisti Cloud", version="1.4C3.0")
 BASE_DIR = Path(__file__).parent
 COOKIE_SECURE = bool(os.getenv("RAILWAY_ENVIRONMENT_ID")) or os.getenv("COOKIE_SECURE", "").lower() in {"1", "true", "yes"}
 init_platform_db()
@@ -791,6 +792,12 @@ def anomalies_summary():
         WHERE d.document_type NOT IN ('TD04','TD08','TD09')
           AND d.status='CON_ANOMALIE'
           AND COALESCE(d.workflow_status,'DA_GESTIRE')='DA_GESTIRE'
+          AND NOT EXISTS (
+              SELECT 1
+              FROM anomaly_verifications av
+              WHERE av.document_id=d.id
+                AND av.anomaly_key=('PRICE:' || dl.id::TEXT)
+          )
         """
     ).fetchone()
     conn.close()
@@ -895,143 +902,72 @@ def review_dashboard():
 
 @app.get("/api/anomalies/dashboard")
 def dashboard_anomalies():
-    """
-    Restituisce al massimo 5 fatture con anomalie, raggruppate per documento.
-    La Dashboard mostra una sola riga per fattura.
-    """
+    """Return up to 5 invoices with anomalies that still require verification."""
     conn = get_connection()
-    rows = conn.execute(
+    docs = conn.execute(
         """
-        SELECT
-            d.id AS document_id,
-            d.document_number,
-            d.document_date,
-            s.name AS supplier,
-            COALESCE(p.name, dl.original_description) AS product_name,
-            dl.price_variance_unit,
-            dl.price_variance_total
-        FROM document_lines dl
-        JOIN documents d ON d.id=dl.document_id
-        JOIN suppliers s ON s.id=d.supplier_id
-        LEFT JOIN products p ON p.id=dl.product_id
-        WHERE dl.price_check_status='DIFFERENZA'
+        SELECT d.id AS document_id,d.document_number,d.document_date,s.name AS supplier
+        FROM documents d
+        LEFT JOIN suppliers s ON s.id=d.supplier_id
+        WHERE d.status='CON_ANOMALIE'
           AND d.document_type NOT IN ('TD04','TD08','TD09')
-          AND d.status='CON_ANOMALIE'
           AND COALESCE(d.workflow_status,'DA_GESTIRE')='DA_GESTIRE'
-        ORDER BY d.id DESC, ABS(COALESCE(dl.price_variance_total,0)) DESC
+        ORDER BY d.id DESC
+        LIMIT 50
         """
     ).fetchall()
-    ddt_rows = conn.execute(
-        """
-        SELECT d.id AS document_id,d.document_number,d.document_date,s.name AS supplier,
-               p.name AS product_name,c.ddt_quantity,c.invoice_quantity,c.quantity_difference,c.status
-        FROM invoice_ddt_checks c
-        JOIN documents d ON d.id=c.invoice_document_id
-        JOIN suppliers s ON s.id=d.supplier_id
-        LEFT JOIN products p ON p.id=c.product_id
-        WHERE c.status<>'OK'
-          AND COALESCE(d.workflow_status,'DA_GESTIRE')='DA_GESTIRE'
-        ORDER BY d.id DESC,p.name
-        """
-    ).fetchall()
-    missing_ddt_rows = conn.execute(
-        """
-        SELECT d.id AS document_id,d.document_number,d.document_date,s.name AS supplier,
-               r.reference_number,r.reference_date
-        FROM invoice_ddt_references r
-        JOIN documents d ON d.id=r.invoice_document_id
-        JOIN suppliers s ON s.id=d.supplier_id
-        WHERE r.delivery_note_id IS NULL
-          AND COALESCE(d.workflow_status,'DA_GESTIRE')='DA_GESTIRE'
-        ORDER BY d.id DESC,r.id
-        """
-    ).fetchall()
-    conn.close()
-
-    grouped = {}
-    for row in rows:
-        r = dict(row)
-        doc_id = r["document_id"]
-        if doc_id not in grouped:
-            grouped[doc_id] = {
-                "document_id": doc_id,
-                "document_number": r["document_number"],
-                "document_date": r["document_date"],
-                "supplier": r["supplier"],
-                "items": [],
-                "impact": 0.0,
-            }
-
-        variance_unit = float(r["price_variance_unit"] or 0)
-        variance_total = float(r["price_variance_total"] or 0)
-        grouped[doc_id]["impact"] += variance_total
-        grouped[doc_id]["items"].append({
-            "product": r["product_name"] or "Prodotto",
-            "variance_unit": variance_unit,
-            "variance_total": variance_total,
-        })
 
     result = []
-    for item in grouped.values():
-        details = item.pop("items")
-        count = len(details)
+    for row in docs:
+        doc = dict(row)
+        open_items = [
+            item
+            for item in load_document_anomalies(conn, doc["document_id"])
+            if not item["verified"]
+        ]
+        if not open_items:
+            continue
 
-        if count == 1:
-            detail = details[0]
-            sign = "+" if detail["variance_unit"] > 0 else ""
-            anomaly_text = (
-                f'{detail["product"]}: {sign}€{detail["variance_unit"]:.2f}/unità '
-                f'rispetto al listino'
-            )
+        price_items = [item for item in open_items if item["type"] == "PRICE"]
+        ddt_items = [item for item in open_items if item["type"] != "PRICE"]
+        impact = round(
+            sum(float(item.get("difference_value") or 0) for item in price_items),
+            2,
+        )
+
+        if price_items:
+            if len(price_items) == 1:
+                anomaly_text = price_items[0]["summary"]
+            else:
+                names = ", ".join(
+                    (item.get("product_name") or "Prodotto")
+                    for item in price_items[:2]
+                )
+                if len(price_items) > 2:
+                    names += f" + altri {len(price_items) - 2}"
+                anomaly_text = f"{len(price_items)} anomalie prezzo da verificare: {names}"
+            if ddt_items:
+                anomaly_text += f" · DDT: {ddt_items[0]['summary']}"
         else:
-            names = ", ".join(d["product"] for d in details[:2])
-            if count > 2:
-                names += f" + altri {count - 2}"
-            anomaly_text = f"{count} anomalie rilevate: {names}"
+            anomaly_text = f"DDT: {ddt_items[0]['summary']}"
+            if len(ddt_items) > 1:
+                anomaly_text += f" + altre {len(ddt_items) - 1}"
 
-        item["anomaly"] = anomaly_text
-        item["impact"] = round(item["impact"], 2)
-        result.append(item)
-
-    by_document = {item["document_id"]: item for item in result}
-
-    def add_ddt_message(row, message):
-        r = dict(row)
-        doc_id = r["document_id"]
-        if doc_id in by_document:
-            current = by_document[doc_id]
-            if "DDT:" not in current["anomaly"]:
-                current["anomaly"] += f" · DDT: {message}"
-            return
-        item = {
-            "document_id": doc_id,
-            "document_number": r["document_number"],
-            "document_date": r["document_date"],
-            "supplier": r["supplier"],
-            "anomaly": f"DDT: {message}",
-            "impact": 0.0,
-            "kind": "DDT",
-        }
-        by_document[doc_id] = item
-        result.append(item)
-
-    for row in ddt_rows:
-        r = dict(row)
-        add_ddt_message(
-            r,
-            f"{r['product_name'] or 'Prodotto'}: consegnati {float(r['ddt_quantity'] or 0):g}, "
-            f"fatturati {float(r['invoice_quantity'] or 0):g}",
+        result.append(
+            {
+                **doc,
+                "anomaly": anomaly_text,
+                "impact": impact,
+                "kind": "PRICE" if price_items else "DDT",
+                "open_anomalies": len(open_items),
+                "status": "DA_VERIFICARE",
+            }
         )
+        if len(result) >= 5:
+            break
 
-    for row in missing_ddt_rows:
-        r = dict(row)
-        add_ddt_message(
-            r,
-            f"DDT {r['reference_number']} non ancora acquisito",
-        )
-
-    result.sort(key=lambda x: ("DDT:" in x["anomaly"], abs(x["impact"])), reverse=True)
-    return result[:5]
+    conn.close()
+    return result
 
 
 @app.get("/api/anomalies")
@@ -1107,14 +1043,24 @@ def document_detail(document_id: int):
     ).fetchall()
     ddt = invoice_ddt_summary(document_id, conn=conn)
     line_items = [dict(r) for r in lines]
+    anomalies = load_document_anomalies(conn, document_id)
+    open_anomaly_count = sum(1 for item in anomalies if not item["verified"])
+    verified_anomaly_count = sum(1 for item in anomalies if item["verified"])
     product_lines = [r for r in line_items if r.get("line_type", "PRODUCT") == "PRODUCT"]
     price_differences = sum(1 for r in product_lines if r.get("price_check_status") == "DIFFERENZA")
     price_ok = sum(1 for r in product_lines if r.get("price_check_status") == "OK")
     without_price_list = sum(1 for r in product_lines if r.get("price_check_status") == "SENZA_LISTINO")
 
-    if price_differences or ddt.get("status") in {"DIFFERENZE", "DDT_MANCANTI"}:
+    if open_anomaly_count:
         overall_status = "ANOMALIE"
-        overall_label = "Ciclo con anomalie da verificare"
+        overall_label = f"{open_anomaly_count} anomalie da verificare"
+    elif anomalies:
+        if ddt.get("status") == "NESSUN_RIFERIMENTO" or without_price_list:
+            overall_status = "PARZIALE"
+            overall_label = "Anomalie verificate · controllo parziale"
+        else:
+            overall_status = "VERIFICATE"
+            overall_label = "Controllo completato – anomalie verificate"
     elif ddt.get("status") == "NESSUN_RIFERIMENTO" or without_price_list:
         overall_status = "PARZIALE"
         overall_label = "Controllo parziale"
@@ -1129,6 +1075,9 @@ def document_detail(document_id: int):
         "price_ok_count": price_ok,
         "price_difference_count": price_differences,
         "without_price_list_count": without_price_list,
+        "open_anomaly_count": open_anomaly_count,
+        "verified_anomaly_count": verified_anomaly_count,
+        "anomaly_count": len(anomalies),
     }
     conn.close()
     return {
@@ -1136,6 +1085,7 @@ def document_detail(document_id: int):
         "lines": line_items,
         "ddt_reconciliation": ddt,
         "purchase_control": purchase_control,
+        "anomalies": anomalies,
     }
 
 
@@ -1290,6 +1240,47 @@ async def upload_document(file: UploadFile = File(...)):
 
 
 
+@app.post("/api/documents/{document_id}/verify-anomaly")
+def verify_anomaly(document_id: int, payload: dict, request: Request):
+    anomaly_key = str(payload.get("anomaly_key") or "").strip()
+    if not anomaly_key:
+        raise HTTPException(400, "Anomalia non specificata.")
+
+    conn = get_connection()
+    doc = conn.execute(
+        "SELECT id,status,workflow_status FROM documents WHERE id=?",
+        (document_id,),
+    ).fetchone()
+    if not doc:
+        conn.close()
+        raise HTTPException(404, "Documento non trovato.")
+
+    if doc["status"] != "CON_ANOMALIE":
+        conn.close()
+        raise HTTPException(400, "Il documento non contiene anomalie da verificare.")
+
+    try:
+        result = verify_document_anomaly(
+            conn,
+            document_id,
+            anomaly_key,
+            request.state.user,
+            payload.get("note", ""),
+        )
+        conn.commit()
+    except ValueError as exc:
+        conn.rollback()
+        conn.close()
+        raise HTTPException(400, str(exc))
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise
+
+    conn.close()
+    return {"ok": True, **result}
+
+
 @app.post("/api/documents/{document_id}/mark-handled")
 def mark_document_handled(document_id: int):
     conn = get_connection()
@@ -1312,6 +1303,15 @@ def mark_document_handled(document_id: int):
             400,
             "Prima di chiudere questo documento devi confermare i dati letti."
         )
+
+    if doc["status"] == "CON_ANOMALIE":
+        open_items = open_document_anomalies(conn, document_id)
+        if open_items:
+            conn.close()
+            raise HTTPException(
+                400,
+                "Prima di chiudere la fattura devi verificare tutte le anomalie."
+            )
 
     conn.execute(
         """

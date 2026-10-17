@@ -1,0 +1,25 @@
+.anomaly-workflow-c3{margin:18px 0;padding:18px;border:1px solid #d9e0e8;border-radius:14px;background:#fbfcfe}
+.anomaly-workflow-heading-c3{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:14px}
+.anomaly-workflow-heading-c3 h3{margin:4px 0 0;font-size:18px}
+.anomaly-workflow-summary-c3{display:flex;gap:8px;flex-wrap:wrap}
+.anomaly-workflow-list-c3{display:flex;flex-direction:column;gap:10px}
+.anomaly-workflow-row-c3{display:flex;justify-content:space-between;gap:18px;align-items:center;padding:14px;border-radius:11px;border:1px solid #efc2bd;background:#fff5f3}
+.anomaly-workflow-row-c3.is-verified{border-color:#c8e4d4;background:#f1f9f4}
+.anomaly-workflow-copy-c3{display:flex;flex-direction:column;gap:5px;min-width:0}
+.anomaly-workflow-state-c3{display:flex;align-items:center;gap:8px}
+.anomaly-workflow-state-c3 small{color:#6b7785}
+.anomaly-state-c3,.anomaly-inline-state-c3{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800;line-height:1}
+.anomaly-state-c3.open,.anomaly-inline-state-c3{background:#fde5e2;color:#a52d26;border:1px solid #efc0ba}
+.anomaly-state-c3.verified{background:#e3f4ea;color:#147a4b;border:1px solid #bfdfcc}
+.anomaly-inline-state-c3{margin-right:8px;margin-bottom:5px}
+.anomaly-values-c3{font-size:12px;color:#4e5c6b}
+.anomaly-audit-c3{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:3px;font-size:12px;color:#53606d}
+.anomaly-audit-c3 strong{color:#147a4b}
+.anomaly-audit-c3 small{flex-basis:100%;font-size:12px;color:#53606d}
+.anomaly-verify-btn-c3{flex:0 0 auto;min-width:175px}
+.invoice-overall-status.verified{background:#e8f6ee;border-color:#c7e3d2;color:#147a4b}
+tr.invoice-line-verified>td{background:#edf8f1!important;border-top:1px solid #c8e4d4;border-bottom:1px solid #c8e4d4}
+tr.invoice-line-verified>td:first-child{border-left:4px solid #28a36a}
+.check-pill.verified{background:#e2f4e9;color:#147a4b;border:1px solid #bfe0cc}
+.variance-cell.verified{color:#147a4b}
+@media(max-width:760px){.anomaly-workflow-heading-c3,.anomaly-workflow-row-c3{flex-direction:column;align-items:flex-start}.anomaly-verify-btn-c3{width:100%}}
