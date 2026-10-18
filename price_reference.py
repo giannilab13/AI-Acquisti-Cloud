@@ -320,7 +320,7 @@ def backfill_price_list_history(conn):
     for row in rows:
         key = (row["supplier_id"], row["product_id"])
         previous_net = last_by_product.get(key)
-        previous = {"net_price": previous_net} if previous_net is not None else None
+        previous = {"net_price": previous_net}
         history_id = record_price_reference(
             conn,
             supplier_id=row["supplier_id"],
