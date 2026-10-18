@@ -1,12 +1,14 @@
 import json
 
+from price_reference import accept_invoice_price_update, establish_invoice_baselines
+
 
 def _verification_map(conn, document_id):
     rows = conn.execute(
         """
         SELECT anomaly_key,anomaly_type,source_id,original_status,summary,
                invoice_value,reference_value,difference_value,details_json,
-               verified_at,verified_by_user_id,verified_by_name,verified_by_email,note
+               verified_at,verified_by_user_id,verified_by_name,verified_by_email,note,resolution
         FROM anomaly_verifications
         WHERE document_id=?
         """,
@@ -140,7 +142,7 @@ def open_document_anomalies(conn, document_id):
     return [item for item in load_document_anomalies(conn, document_id) if not item["verified"]]
 
 
-def verify_document_anomaly(conn, document_id, anomaly_key, user, note=""):
+def verify_document_anomaly(conn, document_id, anomaly_key, user, note="", resolution=None):
     anomalies = load_document_anomalies(conn, document_id)
     target = next((item for item in anomalies if item["key"] == anomaly_key), None)
     if not target:
@@ -149,11 +151,35 @@ def verify_document_anomaly(conn, document_id, anomaly_key, user, note=""):
     if target["verified"]:
         raise ValueError("Questa anomalia risulta già verificata.")
 
+    resolution = str(resolution or "").strip().upper()
+    reference_history_id = None
+
+    if target["type"] == "PRICE":
+        if resolution not in {"ERRORE_FORNITORE", "NUOVO_PREZZO"}:
+            raise ValueError(
+                "Per una differenza prezzo scegli se si tratta di un errore del fornitore "
+                "oppure di un nuovo prezzo concordato."
+            )
+        if resolution == "NUOVO_PREZZO":
+            reference_history_id = accept_invoice_price_update(
+                conn,
+                document_id,
+                int(target["source_id"]),
+                user=user,
+                note=note,
+            )
+    else:
+        resolution = resolution or "VERIFICATA"
+
     details = {
         key: value
         for key, value in target.items()
         if key not in {"verified", "verification"}
     }
+    details["resolution"] = resolution
+    if reference_history_id:
+        details["reference_history_id"] = reference_history_id
+
     user = user or {}
     verified_name = str(user.get("full_name") or "").strip() or str(user.get("email") or "").strip()
 
@@ -162,9 +188,9 @@ def verify_document_anomaly(conn, document_id, anomaly_key, user, note=""):
         INSERT INTO anomaly_verifications(
             document_id,anomaly_key,anomaly_type,source_id,original_status,summary,
             invoice_value,reference_value,difference_value,details_json,
-            verified_at,verified_by_user_id,verified_by_name,verified_by_email,note
+            verified_at,verified_by_user_id,verified_by_name,verified_by_email,note,resolution
         )
-        VALUES(?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?)
+        VALUES(?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?)
         """,
         (
             document_id,
@@ -181,6 +207,7 @@ def verify_document_anomaly(conn, document_id, anomaly_key, user, note=""):
             verified_name or None,
             user.get("email"),
             str(note or "").strip() or None,
+            resolution,
         ),
     )
 
@@ -188,7 +215,9 @@ def verify_document_anomaly(conn, document_id, anomaly_key, user, note=""):
     open_count = sum(1 for item in refreshed if not item["verified"])
     verified_count = sum(1 for item in refreshed if item["verified"])
 
+    baseline_history_ids = []
     if refreshed and open_count == 0:
+        baseline_history_ids = establish_invoice_baselines(conn, document_id, user=user)
         conn.execute(
             """
             UPDATE documents
@@ -202,6 +231,10 @@ def verify_document_anomaly(conn, document_id, anomaly_key, user, note=""):
     return {
         "document_id": document_id,
         "anomaly_key": anomaly_key,
+        "resolution": resolution,
+        "price_reference_updated": bool(reference_history_id),
+        "reference_history_id": reference_history_id,
+        "baseline_prices_created": len(baseline_history_ids),
         "open_count": open_count,
         "verified_count": verified_count,
         "all_verified": bool(refreshed) and open_count == 0,
