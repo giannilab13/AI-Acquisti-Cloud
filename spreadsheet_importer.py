@@ -6,6 +6,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from db import get_connection, next_text_id, normalize_basic
+from price_reference import current_price_reference, record_price_reference
 
 
 HEADER_ALIASES = {
@@ -321,7 +322,8 @@ def import_price_list_file(file_name, file_bytes, supplier_id):
         else:
             matched_products += 1
 
-        conn.execute(
+        previous_reference = current_price_reference(conn, supplier_id, product_id)
+        line_cur = conn.execute(
             """
             INSERT INTO price_list_lines(
                 price_list_id,row_number,supplier_code,original_description,
@@ -334,6 +336,23 @@ def import_price_list_file(file_name, file_bytes, supplier_id):
                 product_id,method,item["unit"],item["net_price"],
                 item["list_price"],item["discount_1"],item["discount_2"],item["net_price"],
             ),
+        )
+
+        record_price_reference(
+            conn,
+            supplier_id=supplier_id,
+            product_id=product_id,
+            net_price=item["net_price"],
+            list_price=item["list_price"],
+            discount_1=item["discount_1"],
+            discount_2=item["discount_2"],
+            unit=item["unit"],
+            source_type="LISTINO",
+            source_price_list_id=price_list_id,
+            source_price_list_line_id=line_cur.lastrowid,
+            effective_from=None,
+            note="Prezzo da listino importato.",
+            previous_reference=previous_reference,
         )
 
         if len(preview) < 10:
