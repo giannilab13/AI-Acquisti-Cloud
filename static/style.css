@@ -1355,3 +1355,54 @@ tr.invoice-line-anomaly:hover > td{
   .supplier-analysis-summary,.supplier-purchase-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
   .supplier-anomaly-heading{flex-direction:column}
 }
+
+
+/* C3.1 - Dettaglio fornitore a pagina */
+.supplier-detail-page{
+  position:fixed;
+  left:220px;
+  top:0;
+  right:0;
+  bottom:0;
+  z-index:1800;
+  margin:0;
+  padding:30px;
+  overflow-y:auto;
+  background:var(--bg);
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+}
+.supplier-detail-page>.panel-title{
+  position:sticky;
+  top:-30px;
+  z-index:5;
+  margin:-30px -30px 22px;
+  padding:26px 30px 18px;
+  background:var(--bg);
+  border-bottom:1px solid var(--line);
+}
+.supplier-detail-page>.panel-title h2{
+  font-size:28px;
+}
+.supplier-detail-page>.panel-title .sub{
+  margin-top:5px;
+}
+.supplier-detail-back{
+  flex:0 0 auto;
+  font-weight:700;
+}
+@media(max-width:800px){
+  .supplier-detail-page{
+    left:0;
+    padding:18px;
+  }
+  .supplier-detail-page>.panel-title{
+    top:-18px;
+    margin:-18px -18px 18px;
+    padding:18px;
+    align-items:flex-start;
+    gap:12px;
+    flex-direction:column;
+  }
+}
