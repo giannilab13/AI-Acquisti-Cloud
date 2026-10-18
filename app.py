@@ -844,16 +844,22 @@ def supplier_detail(supplier_id: str):
         (supplier_id,),
     ).fetchall()
 
+    document_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM documents WHERE supplier_id=?",
+        (supplier_id,),
+    ).fetchone()["c"]
+
     anomaly_stats = _supplier_anomaly_stats(
         conn,
         supplier_id,
-        document_count=len(documents),
+        document_count=int(document_count or 0),
     )
 
     conn.close()
     return {
         "supplier": dict(supplier),
         "stats": dict(stats),
+        "document_count": int(document_count or 0),
         "products": [dict(r) for r in products],
         "monthly": [dict(r) for r in monthly],
         "documents": [dict(r) for r in documents],
