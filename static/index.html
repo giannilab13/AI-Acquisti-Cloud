@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Acquisti - Cloud 1.4C3.1</title>
+  <title>AI Acquisti - Cloud 1.4C3.2</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="stylesheet" href="/static/anomaly-workflow.css">
 </head>
@@ -23,15 +23,15 @@
       <button class="nav" data-view="productsView">Prodotti</button>
       <button class="nav" data-view="suppliersView">Analisi fornitori</button>
       <button class="nav" data-view="priceListsView">Listini</button>
+      <button class="nav" data-view="priceHistoryView">Storico prezzi</button>
       <button class="nav" data-view="usersView">Utenti</button>
-      <button class="nav" disabled>Storico prezzi</button>
     </nav>
     <div class="sidebar-user">
       <strong id="currentUserName">—</strong>
       <span id="currentUserEmail">—</span>
       <button id="logoutBtn" type="button">Esci</button>
     </div>
-    <div class="version">Cloud 1.4C3.1</div>
+    <div class="version">Cloud 1.4C3.2</div>
   </aside>
 
   <main>
@@ -124,7 +124,7 @@
     <section id="documentsView" class="view">
       <header>
         <div><h1>Documenti</h1><p>Importazione fatture e DDT con lettura AI</p></div>
-        <div class="status">Cloud 1.4C3.1</div>
+        <div class="status">Cloud 1.4C3.2</div>
       </header>
 
       <section class="panel upload-panel">
@@ -208,7 +208,7 @@
           <h1>Listini</h1>
           <p>Importazione e consultazione delle condizioni economiche dei fornitori.</p>
         </div>
-        <div class="status">Cloud 1.4C3.1</div>
+        <div class="status">Cloud 1.4C3.2</div>
       </header>
 
       <section class="panel upload-panel">
@@ -251,13 +251,58 @@
       </section>
     </section>
 
+    <section id="priceHistoryView" class="view">
+      <header>
+        <div>
+          <h1>Storico prezzi</h1>
+          <p>Monitora le basi prezzo e tutte le variazioni accettate nel tempo.</p>
+        </div>
+        <div class="status">Cloud 1.4C3.2</div>
+      </header>
+
+      <section class="kpis price-history-kpis">
+        <div class="card"><span>Prodotti monitorati</span><strong id="priceHistoryProducts">—</strong></div>
+        <div class="card"><span>Variazioni registrate</span><strong id="priceHistoryChanges">—</strong></div>
+        <div class="card"><span>Aumenti</span><strong id="priceHistoryIncreases">—</strong></div>
+        <div class="card"><span>Riduzioni</span><strong id="priceHistoryDecreases">—</strong></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">
+          <div>
+            <h2>Evoluzione dei prezzi</h2>
+            <p class="sub">Il prezzo precedente non viene cancellato. Ogni modifica accettata resta nello storico con variazione in euro e percentuale.</p>
+          </div>
+          <button class="secondary" id="refreshPriceHistory" type="button">Aggiorna</button>
+        </div>
+        <div class="products-toolbar price-history-toolbar">
+          <div class="search-box">
+            <label for="priceHistorySearch">Cerca</label>
+            <input id="priceHistorySearch" type="search" placeholder="Prodotto o fornitore...">
+          </div>
+          <div class="filter-box">
+            <label for="priceHistoryFilter">Tipo</label>
+            <select id="priceHistoryFilter">
+              <option value="">Tutti</option>
+              <option value="INCREASE">Aumenti</option>
+              <option value="DECREASE">Riduzioni</option>
+              <option value="BASE">Basi iniziali</option>
+              <option value="LIST">Da listino</option>
+            </select>
+          </div>
+          <div class="products-count" id="priceHistoryCountLabel"></div>
+        </div>
+        <div id="priceHistoryTable"></div>
+      </section>
+    </section>
+
     <section id="usersView" class="view">
       <header>
         <div>
           <h1>Utenti</h1>
           <p>Gestisci gli accessi all'azienda selezionata.</p>
         </div>
-        <div class="status">Cloud 1.4C3.1</div>
+        <div class="status">Cloud 1.4C3.2</div>
       </header>
 
       <section class="panel company-identity-panel">
@@ -336,7 +381,7 @@
           <h1>Prodotti</h1>
           <p>Elenco completo dei prodotti presenti nel database e relativo storico acquisti.</p>
         </div>
-        <div class="status">Cloud 1.4C3.1</div>
+        <div class="status">Cloud 1.4C3.2</div>
       </header>
 
       <section class="kpis product-kpis">
@@ -381,7 +426,7 @@
           <h1>Analisi fornitori</h1>
           <p>Confronta in modo semplice affidabilità, anomalie e impatto economico dei fornitori.</p>
         </div>
-        <div class="status">Cloud 1.4C3.1</div>
+        <div class="status">Cloud 1.4C3.2</div>
       </header>
 
       <section class="kpis supplier-kpis">
