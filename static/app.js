@@ -1318,9 +1318,9 @@ window.showDocument=async id=>{
         <small>${ddt.status==='OK'?'Prodotti e quantità corrispondono':ddt.status==='NESSUN_RIFERIMENTO'?'Nessun riferimento DDT in fattura':'Controllo DDT da completare'}</small>
       </div>
       <div class="dossier-card">
-        <span>Controllo listino</span>
+        <span>Controllo prezzi</span>
         <strong>${control.price_difference_count||0} differenze</strong>
-        <small>${control.price_ok_count||0} righe OK · ${control.without_price_list_count||0} senza listino</small>
+        <small>${control.price_ok_count||0} righe OK · ${control.without_price_list_count||0} senza riferimento</small>
       </div>
     </div>
     ${linkedDdt.length?`<div class="linked-ddt-list">
@@ -1409,7 +1409,7 @@ window.showDocument=async id=>{
       <th>Sconto 1</th>
       <th>Sconto 2</th>
       <th>Netto fattura</th>
-      <th>Netto listino</th>
+      <th>Netto riferimento</th>
       <th>Differenza</th>
       <th>Esito</th>
     </tr></thead>
@@ -1434,7 +1434,7 @@ window.showDocument=async id=>{
             ? '<span class="check-pill base-price">BASE PREZZO</span>'
             : (l.price_check_status==='NON_APPLICABILE' || l.line_type==='ANCILLARY')
               ? '<span class="check-pill neutral">ACCESSORIA</span>'
-              : '<span class="check-pill neutral">SENZA LISTINO</span>'}</td>
+              : '<span class="check-pill neutral">SENZA RIFERIMENTO</span>'}</td>
     </tr>`).join('')}</tbody>
   </table>
   ${finalAction}`;
@@ -1452,10 +1452,13 @@ window.confirmDocument=async id=>{
     await loadDocuments();
     await loadDashboard();
     await window.showDocument(id);
+    const baseMsg=Number(result.baseline_prices_created||0)>0
+      ? ` Sono state create automaticamente ${result.baseline_prices_created} basi prezzo per i prodotti senza riferimento.`
+      : '';
     alert(
-      result.status==='CON_ANOMALIE'
+      (result.status==='CON_ANOMALIE'
         ? 'Dati confermati. Il documento resta in Dashboard perché contiene anomalie da verificare.'
-        : 'Dati confermati. Il documento è stato gestito e rimosso dalla coda Dashboard.'
+        : 'Dati confermati. Il documento è stato gestito e rimosso dalla coda Dashboard.') + baseMsg
     );
   }catch(e){
     alert(e.message||e);
@@ -1471,10 +1474,13 @@ window.markDocumentHandled=async (id,mode)=>{
   if(!window.confirm(message))return;
 
   try{
-    await getJSON(`/api/documents/${id}/mark-handled`,{method:'POST'});
+    const result=await getJSON(`/api/documents/${id}/mark-handled`,{method:'POST'});
     await loadDocuments();
     await loadDashboard();
     await window.showDocument(id);
+    if(Number(result.baseline_prices_created||0)>0){
+      alert(`Documento chiuso. AI Acquisti ha creato automaticamente ${result.baseline_prices_created} basi prezzo per i prodotti che non avevano ancora un riferimento.`);
+    }
   }catch(e){
     alert(e.message||e);
   }
