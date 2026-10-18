@@ -1469,7 +1469,7 @@ def verify_anomaly(document_id: int, payload: dict, request: Request):
 
 
 @app.post("/api/documents/{document_id}/mark-handled")
-def mark_document_handled(document_id: int):
+def mark_document_handled(document_id: int, request: Request):
     conn = get_connection()
     doc = conn.execute(
         """
@@ -1501,7 +1501,7 @@ def mark_document_handled(document_id: int):
             )
 
     baseline_history_ids = establish_invoice_baselines(
-        conn, document_id, user=None
+        conn, document_id, user=request.state.user
     )
 
     conn.execute(
@@ -1525,7 +1525,7 @@ def mark_document_handled(document_id: int):
 
 
 @app.post("/api/documents/{document_id}/confirm")
-def confirm_document(document_id: int):
+def confirm_document(document_id: int, request: Request):
     """
     Conferma una fattura DA_VERIFICARE.
     I movimenti entrano nello storico solo dopo questa conferma.
@@ -1618,7 +1618,7 @@ def confirm_document(document_id: int):
     # C3.2: se manca un listino/riferimento, la prima fattura validata
     # diventa automaticamente la base di confronto per le successive.
     baseline_history_ids = establish_invoice_baselines(
-        conn, document_id, user=None
+        conn, document_id, user=request.state.user
     )
 
     new_status = "CON_ANOMALIE" if anomaly_count else "IMPORTATA"
