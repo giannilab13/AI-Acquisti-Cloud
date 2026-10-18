@@ -1593,47 +1593,116 @@ document.getElementById('closeProductDetail').addEventListener('click', ()=>{
 });
 
 
-// ---------------- MVP 0.4 - Pagina Fornitori ----------------
+// ---------------- C3.1 - Analisi fornitori ----------------
 let suppliersOverviewCache = [];
+let supplierDetailCache = null;
+let supplierAnomalyFilter = 'ALL';
+
+function escSupplierHtml(value){
+  return String(value == null ? '' : value)
+    .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+    .replaceAll('"','&quot;').replaceAll("'",'&#039;');
+}
+
+function supplierRate(value){
+  const n=Number(value||0);
+  return n.toLocaleString('it-IT',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+}
+
+function supplierAnomalyTypeLabel(type){
+  if(type==='PRICE') return 'Prezzo / listino';
+  if(type==='DDT_QUANTITY') return 'DDT / quantità';
+  if(type==='DDT_MISSING') return 'DDT mancante';
+  return 'Anomalia';
+}
+
+function supplierAuditDate(value){
+  if(!value) return '';
+  const d=new Date(value);
+  return Number.isNaN(d.getTime()) ? value : d.toLocaleString('it-IT');
+}
+
+function supplierAnomalyValues(a){
+  if(a.type==='PRICE'){
+    const unitDiff=Number(a.difference_unit||0);
+    const totalDiff=Number(a.difference_value||0);
+    return `Fattura ${fmtEuro(a.invoice_value)} · Listino ${fmtEuro(a.reference_value)} · Diff. unit. ${unitDiff>0?'+':''}${fmtEuro(unitDiff)} · Impatto ${totalDiff>0?'+':''}${fmtEuro(totalDiff)}`;
+  }
+  if(a.type==='DDT_QUANTITY'){
+    return `Fattura ${Number(a.invoice_value||0)} · DDT ${Number(a.reference_value||0)} · Differenza ${Number(a.difference_value||0)}`;
+  }
+  return '';
+}
 
 async function loadSuppliersPage(){
   suppliersOverviewCache = await getJSON('/api/suppliers-overview');
 
-  const categories = [...new Set(
-    suppliersOverviewCache.map(s => s.category || 'Da classificare')
-  )].sort((a,b)=>a.localeCompare(b,'it'));
-
-  const categorySelect = document.getElementById('suppliersCategory');
-  const currentCategory = categorySelect.value;
-  categorySelect.innerHTML =
-    '<option value="">Tutte</option>' +
-    categories.map(c=>`<option value="${c}">${c}</option>`).join('');
-  if(categories.includes(currentCategory)) categorySelect.value = currentCategory;
-
   document.getElementById('suppliersTotal').textContent = suppliersOverviewCache.length;
-  document.getElementById('suppliersWithPurchases').textContent =
-    suppliersOverviewCache.filter(s=>s.purchase_count > 0).length;
-
-  const spendTotal = suppliersOverviewCache.reduce((sum,s)=>sum+Number(s.total_spend||0),0);
-  document.getElementById('suppliersSpendTotal').textContent = fmtEuro(spendTotal);
 
   const docsTotal = suppliersOverviewCache.reduce((sum,s)=>sum+Number(s.document_count||0),0);
   document.getElementById('suppliersDocsTotal').textContent = docsTotal;
 
+  const anomaliesTotal = suppliersOverviewCache.reduce((sum,s)=>sum+Number(s.anomaly_count||0),0);
+  document.getElementById('suppliersAnomaliesTotal').textContent = anomaliesTotal;
+
+  const openTotal = suppliersOverviewCache.reduce((sum,s)=>sum+Number(s.open_anomalies||0),0);
+  document.getElementById('suppliersOpenAnomalies').textContent = openTotal;
+
+  renderSupplierComparison();
   renderSuppliersTable();
+}
+
+function renderSupplierComparison(){
+  const el=document.getElementById('supplierComparisonBars');
+  if(!el)return;
+
+  const rows=[...suppliersOverviewCache]
+    .sort((a,b)=>{
+      const rate=Number(b.anomaly_rate_pct||0)-Number(a.anomaly_rate_pct||0);
+      if(rate!==0)return rate;
+      const count=Number(b.anomaly_count||0)-Number(a.anomaly_count||0);
+      if(count!==0)return count;
+      return String(a.name||'').localeCompare(String(b.name||''),'it');
+    })
+    .slice(0,6);
+
+  if(!rows.length){
+    el.innerHTML='<div class="empty-state">Nessun fornitore disponibile.</div>';
+    return;
+  }
+
+  const max=Math.max(...rows.map(r=>Number(r.anomaly_rate_pct||0)),1);
+  el.innerHTML=rows.map(r=>{
+    const rate=Number(r.anomaly_rate_pct||0);
+    return `<div class="supplier-comparison-row" onclick="showSupplierDetail('${escSupplierHtml(r.id)}')">
+      <div class="supplier-comparison-label">
+        <strong>${escSupplierHtml(r.name)}</strong>
+        <small>${Number(r.anomaly_count||0)} anomalie · ${Number(r.open_anomalies||0)} aperte</small>
+      </div>
+      <div class="supplier-comparison-track"><span style="width:${rate?Math.max(4,rate/max*100):0}%"></span></div>
+      <strong class="supplier-comparison-rate">${supplierRate(rate)}</strong>
+    </div>`;
+  }).join('');
 }
 
 function renderSuppliersTable(){
   const search = document.getElementById('suppliersSearch').value.trim().toLowerCase();
-  const category = document.getElementById('suppliersCategory').value;
+  const anomalyFilter = document.getElementById('suppliersAnomalyFilter').value;
 
   const filtered = suppliersOverviewCache.filter(s=>{
-    const haystack = [
-      s.name,s.vat_number,s.category,s.id
-    ].filter(Boolean).join(' ').toLowerCase();
-
-    return (!search || haystack.includes(search)) &&
-           (!category || (s.category || 'Da classificare') === category);
+    const haystack = [s.name,s.vat_number,s.category,s.id].filter(Boolean).join(' ').toLowerCase();
+    const has=Number(s.anomaly_count||0)>0;
+    const open=Number(s.open_anomalies||0)>0;
+    const stateOk =
+      !anomalyFilter ||
+      (anomalyFilter==='WITH' && has) ||
+      (anomalyFilter==='OPEN' && open) ||
+      (anomalyFilter==='NONE' && !has);
+    return (!search || haystack.includes(search)) && stateOk;
+  }).sort((a,b)=>{
+    const rate=Number(b.anomaly_rate_pct||0)-Number(a.anomaly_rate_pct||0);
+    if(rate!==0)return rate;
+    return String(a.name||'').localeCompare(String(b.name||''),'it');
   });
 
   document.getElementById('suppliersCountLabel').textContent =
@@ -1645,42 +1714,98 @@ function renderSuppliersTable(){
     return;
   }
 
-  el.innerHTML = `<table>
+  el.innerHTML = `<div class="supplier-analysis-table-wrap"><table class="supplier-analysis-table">
     <thead>
       <tr>
         <th>Fornitore</th>
-        <th>Categoria</th>
-        <th>Prodotti</th>
-        <th>Acquisti</th>
-        <th>Spesa totale</th>
-        <th>Vs mese precedente</th>
-        <th>Ultimo acquisto</th>
         <th>Documenti</th>
+        <th>Doc. con anomalie</th>
+        <th>Anomalie</th>
+        <th>Aperte</th>
+        <th>Incidenza</th>
+        <th>Maggior costo</th>
       </tr>
     </thead>
     <tbody>
       ${filtered.map(s=>`
-        <tr class="clickable" onclick="showSupplierDetail('${s.id}')">
+        <tr class="clickable" onclick="showSupplierDetail('${escSupplierHtml(s.id)}')">
           <td class="supplier-name-cell">
-            <strong>${s.name}</strong>
-            <small>${s.vat_number || s.id}</small>
+            <strong>${escSupplierHtml(s.name)}</strong>
+            <small>${escSupplierHtml(s.vat_number || s.category || s.id)}</small>
           </td>
-          <td>${s.category || 'Da classificare'}</td>
-          <td>${s.product_count}</td>
-          <td>${s.purchase_count}</td>
-          <td>${fmtEuro(s.total_spend)}</td>
-          <td>${formatChange(s.monthly_change_pct)}</td>
-          <td>${s.last_purchase || '—'}</td>
-          <td>${s.document_count}</td>
+          <td>${Number(s.document_count||0)}</td>
+          <td>${Number(s.anomaly_documents||0)}</td>
+          <td>
+            <strong>${Number(s.anomaly_count||0)}</strong>
+            <small class="supplier-cell-note">${Number(s.verified_anomalies||0)} verificate</small>
+          </td>
+          <td>${Number(s.open_anomalies||0) ? `<span class="supplier-open-pill">${Number(s.open_anomalies||0)}</span>` : '<span class="supplier-ok-pill">0</span>'}</td>
+          <td><strong>${supplierRate(s.anomaly_rate_pct)}</strong></td>
+          <td class="${Number(s.extra_cost_total||0)>0?'variance-bad':''}">${fmtEuro(s.extra_cost_total||0)}</td>
         </tr>
       `).join('')}
     </tbody>
-  </table>`;
+  </table></div>`;
 }
+
+function renderSupplierAnomalyHistory(){
+  const host=document.getElementById('supplierAnomalyHistory');
+  if(!host || !supplierDetailCache)return;
+
+  const all=supplierDetailCache.anomalies||[];
+  const rows=all.filter(a=>
+    supplierAnomalyFilter==='ALL' ||
+    (supplierAnomalyFilter==='OPEN' && !a.verified) ||
+    (supplierAnomalyFilter==='VERIFIED' && a.verified)
+  );
+
+  document.querySelectorAll('.supplier-anomaly-filter').forEach(btn=>{
+    btn.classList.toggle('active',btn.dataset.supplierAnomalyFilter===supplierAnomalyFilter);
+  });
+
+  if(!rows.length){
+    host.innerHTML='<div class="empty-state">Nessuna anomalia in questo filtro.</div>';
+    return;
+  }
+
+  host.innerHTML=`<div class="supplier-anomaly-table-wrap"><table class="supplier-anomaly-table">
+    <thead><tr><th>Data</th><th>Fattura</th><th>Tipo</th><th>Anomalia</th><th>Stato</th><th>Impatto</th></tr></thead>
+    <tbody>${rows.map(a=>{
+      const v=a.verification||{};
+      const values=supplierAnomalyValues(a);
+      const audit=a.verified
+        ? `<small class="supplier-anomaly-audit">${escSupplierHtml(supplierAuditDate(v.verified_at))} · ${escSupplierHtml(v.verified_by_name||v.verified_by_email||'Utente')}${v.note?' · Nota: '+escSupplierHtml(v.note):''}</small>`
+        : '';
+      const impact=a.type==='PRICE'
+        ? `${Number(a.difference_value||0)>0?'+':''}${fmtEuro(a.difference_value||0)}`
+        : '—';
+      return `<tr class="clickable" onclick="openAnomalyDocument(${Number(a.document_id)})">
+        <td>${escSupplierHtml(a.document_date||'—')}</td>
+        <td><strong>${escSupplierHtml(a.document_number||'—')}</strong></td>
+        <td>${escSupplierHtml(supplierAnomalyTypeLabel(a.type))}</td>
+        <td>
+          <strong>${escSupplierHtml(a.summary||'Anomalia')}</strong>
+          ${values?`<small class="supplier-anomaly-values">${escSupplierHtml(values)}</small>`:''}
+          ${audit}
+        </td>
+        <td>${a.verified?'<span class="supplier-verified-pill">Verificata</span>':'<span class="supplier-open-pill">Da verificare</span>'}</td>
+        <td class="${a.type==='PRICE' && Number(a.difference_value||0)>0?'variance-bad':''}">${impact}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+window.setSupplierAnomalyFilter = filter => {
+  supplierAnomalyFilter=filter;
+  renderSupplierAnomalyHistory();
+};
 
 window.showSupplierDetail = async supplierId => {
   const data = await getJSON(`/api/suppliers/${supplierId}/detail`);
-  const s = data.supplier, st = data.stats;
+  supplierDetailCache=data;
+  supplierAnomalyFilter='ALL';
+
+  const s = data.supplier, st = data.stats, an=data.anomaly_stats||{};
 
   document.getElementById('supplierDetailTitle').textContent = s.name;
   document.getElementById('supplierDetailSubtitle').textContent =
@@ -1704,9 +1829,9 @@ window.showSupplierDetail = async supplierId => {
       <thead><tr><th>Prodotto</th><th>Acquisti</th><th>Quantità</th><th>Prezzo medio</th><th>Spesa</th></tr></thead>
       <tbody>${data.products.map(p=>`
         <tr>
-          <td>${p.name}</td>
+          <td>${escSupplierHtml(p.name)}</td>
           <td>${p.purchases}</td>
-          <td>${p.total_quantity} ${p.unit || ''}</td>
+          <td>${p.total_quantity} ${escSupplierHtml(p.unit || '')}</td>
           <td>${fmtEuro(p.average_price)}</td>
           <td>${fmtEuro(p.total_spend)}</td>
         </tr>`).join('')}
@@ -1717,24 +1842,46 @@ window.showSupplierDetail = async supplierId => {
     <table>
       <thead><tr><th>Data</th><th>Numero</th><th>Tipo</th><th>Totale</th><th>Stato</th></tr></thead>
       <tbody>${data.documents.map(d=>`
-        <tr>
-          <td>${d.document_date || '—'}</td>
-          <td>${d.document_number || '—'}</td>
-          <td>${d.document_type || '—'}</td>
+        <tr class="clickable" onclick="openAnomalyDocument(${Number(d.id)})">
+          <td>${escSupplierHtml(d.document_date || '—')}</td>
+          <td>${escSupplierHtml(d.document_number || '—')}</td>
+          <td>${escSupplierHtml(d.document_type || '—')}</td>
           <td>${fmtEuro(d.total_amount)}</td>
-          <td>${d.status || '—'}</td>
+          <td>${escSupplierHtml(d.workflow_status==='GESTITO'?'Gestita':d.status || '—')}</td>
         </tr>`).join('')}
       </tbody>
     </table>` : '<div class="empty-state">Nessun documento importato per questo fornitore.</div>';
 
   document.getElementById('supplierDetail').innerHTML = `
-    <div class="detail-summary">
+    <div class="supplier-analysis-summary">
+      <div class="detail-stat"><span>Documenti controllati</span><strong>${Number(an.document_count||data.document_count||data.documents.length||0)}</strong></div>
+      <div class="detail-stat"><span>Doc. con anomalie</span><strong>${Number(an.anomaly_documents||0)}</strong></div>
+      <div class="detail-stat"><span>Anomalie totali</span><strong>${Number(an.anomaly_count||0)}</strong></div>
+      <div class="detail-stat"><span>Da verificare</span><strong>${Number(an.open_anomalies||0)}</strong></div>
+      <div class="detail-stat"><span>Incidenza</span><strong>${supplierRate(an.anomaly_rate_pct)}</strong></div>
+      <div class="detail-stat"><span>Maggior costo</span><strong>${fmtEuro(an.extra_cost_total||0)}</strong></div>
+    </div>
+
+    <div class="detail-block supplier-anomalies-block">
+      <div class="supplier-anomaly-heading">
+        <div>
+          <h3>Anomalie del fornitore</h3>
+          <p class="sub">Storico completo: le anomalie verificate restano consultabili ma non tornano nella Dashboard.</p>
+        </div>
+        <div class="supplier-anomaly-filters">
+          <button type="button" class="supplier-anomaly-filter active" data-supplier-anomaly-filter="ALL" onclick="setSupplierAnomalyFilter('ALL')">Tutte</button>
+          <button type="button" class="supplier-anomaly-filter" data-supplier-anomaly-filter="OPEN" onclick="setSupplierAnomalyFilter('OPEN')">Da verificare</button>
+          <button type="button" class="supplier-anomaly-filter" data-supplier-anomaly-filter="VERIFIED" onclick="setSupplierAnomalyFilter('VERIFIED')">Verificate</button>
+        </div>
+      </div>
+      <div id="supplierAnomalyHistory"></div>
+    </div>
+
+    <div class="supplier-purchase-summary">
+      <div class="detail-stat"><span>Spesa totale</span><strong>${fmtEuro(st.total_spend)}</strong></div>
       <div class="detail-stat"><span>Acquisti registrati</span><strong>${st.purchase_count || 0}</strong></div>
       <div class="detail-stat"><span>Prodotti diversi</span><strong>${st.product_count || 0}</strong></div>
-      <div class="detail-stat"><span>Spesa totale</span><strong>${fmtEuro(st.total_spend)}</strong></div>
-      <div class="detail-stat"><span>Primo acquisto</span><strong>${st.first_purchase || '—'}</strong></div>
       <div class="detail-stat"><span>Ultimo acquisto</span><strong>${st.last_purchase || '—'}</strong></div>
-      <div class="detail-stat"><span>Documenti importati</span><strong>${data.documents.length}</strong></div>
     </div>
 
     <div class="supplier-detail-grid">
@@ -1753,15 +1900,18 @@ window.showSupplierDetail = async supplierId => {
       ${docsHtml}
     </div>`;
 
+  renderSupplierAnomalyHistory();
+
   const panel = document.getElementById('supplierDetailPanel');
   panel.classList.remove('hidden');
   panel.scrollIntoView({behavior:'smooth', block:'start'});
 };
 
 document.getElementById('suppliersSearch').addEventListener('input', renderSuppliersTable);
-document.getElementById('suppliersCategory').addEventListener('change', renderSuppliersTable);
+document.getElementById('suppliersAnomalyFilter').addEventListener('change', renderSuppliersTable);
 document.getElementById('closeSupplierDetail').addEventListener('click', ()=>{
   document.getElementById('supplierDetailPanel').classList.add('hidden');
+  supplierDetailCache=null;
 });
 
 
