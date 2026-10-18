@@ -10,7 +10,7 @@
       const unitDiff=Number(a.difference_unit||0);
       const totalDiff=Number(a.difference_value||0);
       return 'Fattura ' + fmtEuro(a.invoice_value) +
-        ' · Listino ' + fmtEuro(a.reference_value) +
+        ' · Riferimento ' + fmtEuro(a.reference_value) +
         ' · Diff. unit.: ' + (unitDiff>0?'+':'') + fmtEuro(unitDiff) +
         ' · Impatto totale: ' + (totalDiff>0?'+':'') + fmtEuro(totalDiff);
     }
