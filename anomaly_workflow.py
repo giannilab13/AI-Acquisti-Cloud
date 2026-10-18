@@ -46,7 +46,7 @@ def load_document_anomalies(conn, document_id):
         sign = "+" if variance_unit > 0 else ""
         summary = (
             f"{r['product_name'] or 'Prodotto'}: {sign}€{variance_unit:.2f}/unità "
-            "rispetto al listino"
+            "rispetto al riferimento prezzo"
         )
         item = {
             "key": key,
