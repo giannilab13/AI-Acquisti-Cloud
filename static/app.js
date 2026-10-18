@@ -106,6 +106,7 @@ async function selectCompany(companyId){
   document.getElementById('ddtDetailPanel')?.classList.add('hidden');
   document.body.classList.remove('document-modal-open');
   document.getElementById('priceListDetailPanel')?.classList.add('hidden');
+  closeSupplierDetailPage?.();
 
   await refreshCurrentView();
 }
@@ -530,6 +531,7 @@ async function createCompanyUser(){
 
 document.querySelectorAll('.nav[data-view]').forEach(btn=>{
   btn.addEventListener('click',()=>{
+    closeSupplierDetailPage?.();
     document.querySelectorAll('.nav[data-view]').forEach(x=>x.classList.remove('active'));
     btn.classList.add('active');
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active-view'));
@@ -673,6 +675,7 @@ async function loadDashboardAnomalies(){
 }
 
 window.openAnomalyDocument = async id => {
+  closeSupplierDetailPage?.();
   const btn = document.querySelector('.nav[data-view="documentsView"]');
   if(btn) btn.click();
   await loadDocuments();
@@ -1904,15 +1907,16 @@ window.showSupplierDetail = async supplierId => {
 
   const panel = document.getElementById('supplierDetailPanel');
   panel.classList.remove('hidden');
-  panel.scrollIntoView({behavior:'smooth', block:'start'});
+  panel.scrollTop=0;
 };
 
 document.getElementById('suppliersSearch').addEventListener('input', renderSuppliersTable);
 document.getElementById('suppliersAnomalyFilter').addEventListener('change', renderSuppliersTable);
-document.getElementById('closeSupplierDetail').addEventListener('click', ()=>{
-  document.getElementById('supplierDetailPanel').classList.add('hidden');
+function closeSupplierDetailPage(){
+  document.getElementById('supplierDetailPanel')?.classList.add('hidden');
   supplierDetailCache=null;
-});
+}
+document.getElementById('closeSupplierDetail').addEventListener('click', closeSupplierDetailPage);
 
 
 // ---------------- MVP 0.5 - Listini Excel / CSV ----------------
