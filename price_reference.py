@@ -85,6 +85,7 @@ def record_price_reference(
     user=None,
     note=None,
     previous_reference=None,
+    force_record=False,
 ):
     """Append a reference price change without deleting the previous value."""
     net_price = _to_float(net_price)
@@ -120,7 +121,7 @@ def record_price_reference(
     previous_net = _to_float(previous.get("net_price")) if previous else None
 
     # Una riga nuova serve solo quando nasce il riferimento o cambia il netto.
-    if previous_net is not None and abs(net_price - previous_net) <= PRICE_TOLERANCE:
+    if (not force_record) and previous_net is not None and abs(net_price - previous_net) <= PRICE_TOLERANCE:
         return None
 
     variation_value = None
@@ -294,7 +295,13 @@ def accept_invoice_price_update(conn, document_id, document_line_id, user=None, 
 
 
 def backfill_price_list_history(conn):
-    """Bring pre-C3.2 price-list rows into history once, preserving chronology."""
+    """Migrate pre-C3.2 price lists into ordered version history once."""
+    existing_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM price_reference_history"
+    ).fetchone()["c"]
+    if existing_count:
+        return 0
+
     rows = conn.execute(
         """
         SELECT pll.id AS line_id,pll.price_list_id,pl.supplier_id,pl.imported_at,
@@ -302,19 +309,18 @@ def backfill_price_list_history(conn):
                pll.discount_2,pll.unit
         FROM price_list_lines pll
         JOIN price_lists pl ON pl.id=pll.price_list_id
-        LEFT JOIN price_reference_history h
-          ON h.source_type='LISTINO'
-         AND h.source_price_list_line_id=pll.id
-        WHERE h.id IS NULL
-          AND pll.product_id IS NOT NULL
+        WHERE pll.product_id IS NOT NULL
           AND pll.net_price IS NOT NULL
         ORDER BY pl.imported_at,pl.id,pll.id
         """
     ).fetchall()
 
+    last_by_product = {}
     added = 0
     for row in rows:
-        previous = current_price_reference(conn, row["supplier_id"], row["product_id"])
+        key = (row["supplier_id"], row["product_id"])
+        previous_net = last_by_product.get(key)
+        previous = {"net_price": previous_net} if previous_net is not None else None
         history_id = record_price_reference(
             conn,
             supplier_id=row["supplier_id"],
@@ -330,11 +336,9 @@ def backfill_price_list_history(conn):
             effective_from=row["imported_at"],
             note="Storico ricostruito da listino importato.",
             previous_reference=previous,
+            force_record=True,
         )
         if history_id:
             added += 1
-        else:
-            # Anche una riga invariata va marcata come migrata per non riesaminarla.
-            # Registriamo solo i cambi prezzo: l'assenza di una riga è intenzionale.
-            pass
+        last_by_product[key] = _to_float(row["net_price"])
     return added
