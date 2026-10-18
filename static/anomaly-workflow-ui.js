@@ -27,6 +27,13 @@
     return 'Anomalia';
   }
 
+  function anomalyResolutionLabel(value){
+    if(value==='NUOVO_PREZZO') return 'Nuovo prezzo accettato · riferimento aggiornato';
+    if(value==='ERRORE_FORNITORE') return 'Prezzo errato · riferimento invariato';
+    if(value==='VERIFICATA') return 'Verificata';
+    return value||'';
+  }
+
   function formatAuditDate(value){
     if(!value) return '';
     const d=new Date(value);
@@ -66,6 +73,7 @@
         if(a.verified){
           audit='<div class="anomaly-audit-c3"><strong>Verificata</strong><span>' +
             esc(formatAuditDate(v.verified_at)) + ' · ' + esc(v.verified_by_name||v.verified_by_email||'Utente') + '</span>' +
+            (v.resolution?'<em>'+esc(anomalyResolutionLabel(v.resolution))+'</em>':'') +
             (v.note?'<small>Nota: '+esc(v.note)+'</small>':'') + '</div>';
         }
         const values=anomalyValues(a);
@@ -75,12 +83,34 @@
           '</strong>' + (values?'<span class="anomaly-values-c3">'+esc(values)+'</span>':'') + audit;
         row.appendChild(copy);
         if(!a.verified){
-          const btn=document.createElement('button');
-          btn.type='button';
-          btn.className='anomaly-verify-btn-c3';
-          btn.textContent='Segna come verificata';
-          btn.addEventListener('click',()=>verifyAnomalyC3(d.id,a.key));
-          row.appendChild(btn);
+          const actions=document.createElement('div');
+          actions.className='anomaly-actions-c32';
+          if(a.type==='PRICE'){
+            const errorBtn=document.createElement('button');
+            errorBtn.type='button';
+            errorBtn.className='anomaly-verify-btn-c3 secondary anomaly-price-error-c32';
+            errorBtn.textContent='Prezzo errato';
+            errorBtn.title='Il prezzo in fattura è errato: il riferimento attuale non cambia.';
+            errorBtn.addEventListener('click',()=>verifyAnomalyC3(d.id,a.key,'ERRORE_FORNITORE'));
+
+            const acceptBtn=document.createElement('button');
+            acceptBtn.type='button';
+            acceptBtn.className='anomaly-verify-btn-c3 anomaly-price-accept-c32';
+            acceptBtn.textContent='Accetta nuovo prezzo';
+            acceptBtn.title='Il prezzo diventa il nuovo riferimento per le fatture successive.';
+            acceptBtn.addEventListener('click',()=>verifyAnomalyC3(d.id,a.key,'NUOVO_PREZZO'));
+
+            actions.appendChild(errorBtn);
+            actions.appendChild(acceptBtn);
+          }else{
+            const btn=document.createElement('button');
+            btn.type='button';
+            btn.className='anomaly-verify-btn-c3';
+            btn.textContent='Segna come verificata';
+            btn.addEventListener('click',()=>verifyAnomalyC3(d.id,a.key,'VERIFICATA'));
+            actions.appendChild(btn);
+          }
+          row.appendChild(actions);
         }
         list.appendChild(row);
       });
@@ -156,23 +186,57 @@
     }
   }
 
-  window.verifyAnomalyC3=async function(documentId,anomalyKey){
-    const note=window.prompt(
-      'Segna questa anomalia come verificata. Puoi aggiungere una nota facoltativa (es. “Aumento concordato con fornitore”).',
-      ''
-    );
-    if(note===null) return;
+  window.verifyAnomalyC3=async function(documentId,anomalyKey,resolution='VERIFICATA'){
+    let note='';
+
+    if(resolution==='NUOVO_PREZZO'){
+      const ok=window.confirm(
+        'Confermi che il prezzo della fattura è corretto e deve diventare il nuovo prezzo di riferimento? Il prezzo precedente resterà nello storico.'
+      );
+      if(!ok) return;
+      const entered=window.prompt(
+        'Nota facoltativa (es. “Nuovo prezzo concordato con il fornitore”).',
+        ''
+      );
+      if(entered===null) return;
+      note=entered;
+    }else if(resolution==='ERRORE_FORNITORE'){
+      const entered=window.prompt(
+        'Il prezzo viene segnato come errato e il riferimento attuale NON cambia. Puoi aggiungere una nota facoltativa.',
+        ''
+      );
+      if(entered===null) return;
+      note=entered;
+    }else{
+      const entered=window.prompt(
+        'Segna questa anomalia come verificata. Puoi aggiungere una nota facoltativa.',
+        ''
+      );
+      if(entered===null) return;
+      note=entered;
+    }
+
     try{
       const result=await getJSON('/api/documents/'+documentId+'/verify-anomaly',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({anomaly_key:anomalyKey,note:note})
+        body:JSON.stringify({
+          anomaly_key:anomalyKey,
+          note:note,
+          resolution:resolution
+        })
       });
       await loadDocuments();
       await loadDashboard();
       await window.showDocument(documentId);
+
       if(result.all_verified){
-        alert('Tutte le anomalie sono state verificate. La fattura è stata chiusa e resta disponibile nello storico.');
+        const extra=result.price_reference_updated
+          ? ' Il nuovo prezzo è stato memorizzato come riferimento e il precedente resta nello storico.'
+          : '';
+        alert('Tutte le anomalie sono state verificate. La fattura è stata chiusa e resta disponibile nello storico.'+extra);
+      }else if(result.price_reference_updated){
+        alert('Nuovo prezzo salvato come riferimento. Il prezzo precedente resta nello Storico prezzi.');
       }
     }catch(e){
       alert(e.message||e);
