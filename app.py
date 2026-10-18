@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import mimetypes
+import json
 
 from dotenv import load_dotenv
 
@@ -43,7 +44,7 @@ from anomaly_workflow import load_document_anomalies, open_document_anomalies, v
 
 load_dotenv()
 
-app = FastAPI(title="AI Acquisti Cloud", version="1.4C3.0")
+app = FastAPI(title="AI Acquisti Cloud", version="1.4C3.1")
 BASE_DIR = Path(__file__).parent
 COOKIE_SECURE = bool(os.getenv("RAILWAY_ENVIRONMENT_ID")) or os.getenv("COOKIE_SECURE", "").lower() in {"1", "true", "yes"}
 init_platform_db()
@@ -544,6 +545,159 @@ def products_overview():
 
 
 
+
+def _supplier_anomaly_items(conn, supplier_id):
+    """
+    Restituisce lo storico anomalie del fornitore.
+    Unisce le anomalie correnti con le verifiche storiche, così una voce
+    verificata resta consultabile anche se in seguito il controllo corrente cambia.
+    """
+    documents = conn.execute(
+        """
+        SELECT id,document_number,document_date,total_amount,status,workflow_status
+        FROM documents
+        WHERE supplier_id=?
+        ORDER BY document_date DESC,id DESC
+        """,
+        (supplier_id,),
+    ).fetchall()
+
+    items = {}
+    for document in documents:
+        doc = dict(document)
+        for anomaly in load_document_anomalies(conn, doc["id"]):
+            item = {
+                **anomaly,
+                "document_id": doc["id"],
+                "document_number": doc["document_number"],
+                "document_date": doc["document_date"],
+                "document_total": euro(doc["total_amount"]),
+                "document_status": doc["status"],
+                "workflow_status": doc["workflow_status"],
+            }
+            items[(doc["id"], anomaly["key"])] = item
+
+    historical_rows = conn.execute(
+        """
+        SELECT av.document_id,av.anomaly_key,av.anomaly_type,av.source_id,
+               av.original_status,av.summary,av.invoice_value,av.reference_value,
+               av.difference_value,av.details_json,av.verified_at,
+               av.verified_by_user_id,av.verified_by_name,av.verified_by_email,av.note,
+               d.document_number,d.document_date,d.total_amount,d.status,d.workflow_status
+        FROM anomaly_verifications av
+        JOIN documents d ON d.id=av.document_id
+        WHERE d.supplier_id=?
+        ORDER BY av.verified_at DESC,av.document_id DESC
+        """,
+        (supplier_id,),
+    ).fetchall()
+
+    for row in historical_rows:
+        r = dict(row)
+        key = (r["document_id"], r["anomaly_key"])
+        verification = {
+            "anomaly_key": r["anomaly_key"],
+            "anomaly_type": r["anomaly_type"],
+            "source_id": r["source_id"],
+            "original_status": r["original_status"],
+            "summary": r["summary"],
+            "invoice_value": float(r["invoice_value"]) if r["invoice_value"] is not None else None,
+            "reference_value": float(r["reference_value"]) if r["reference_value"] is not None else None,
+            "difference_value": float(r["difference_value"]) if r["difference_value"] is not None else None,
+            "details_json": r["details_json"],
+            "verified_at": r["verified_at"],
+            "verified_by_user_id": r["verified_by_user_id"],
+            "verified_by_name": r["verified_by_name"],
+            "verified_by_email": r["verified_by_email"],
+            "note": r["note"],
+        }
+
+        if key in items:
+            items[key]["verified"] = True
+            items[key]["verification"] = verification
+            continue
+
+        details = {}
+        try:
+            details = json.loads(r["details_json"] or "{}")
+        except Exception:
+            details = {}
+
+        items[key] = {
+            "key": r["anomaly_key"],
+            "type": r["anomaly_type"],
+            "source_id": r["source_id"],
+            "summary": r["summary"],
+            "product_name": details.get("product_name"),
+            "invoice_value": (
+                float(r["invoice_value"]) if r["invoice_value"] is not None else details.get("invoice_value")
+            ),
+            "reference_value": (
+                float(r["reference_value"]) if r["reference_value"] is not None else details.get("reference_value")
+            ),
+            "difference_value": (
+                float(r["difference_value"]) if r["difference_value"] is not None else details.get("difference_value")
+            ),
+            "difference_unit": details.get("difference_unit"),
+            "quantity": details.get("quantity"),
+            "unit": details.get("unit"),
+            "original_status": r["original_status"] or "DA_VERIFICARE",
+            "verified": True,
+            "verification": verification,
+            "document_id": r["document_id"],
+            "document_number": r["document_number"],
+            "document_date": r["document_date"],
+            "document_total": euro(r["total_amount"]),
+            "document_status": r["status"],
+            "workflow_status": r["workflow_status"],
+        }
+
+    result = list(items.values())
+    result.sort(
+        key=lambda item: (
+            str(item.get("document_date") or ""),
+            int(item.get("document_id") or 0),
+            str(item.get("key") or ""),
+        ),
+        reverse=True,
+    )
+    return result
+
+
+def _supplier_anomaly_stats(conn, supplier_id, document_count=None):
+    anomalies = _supplier_anomaly_items(conn, supplier_id)
+    if document_count is None:
+        document_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM documents WHERE supplier_id=?",
+            (supplier_id,),
+        ).fetchone()["c"]
+
+    anomaly_documents = len({item["document_id"] for item in anomalies})
+    open_count = sum(1 for item in anomalies if not item.get("verified"))
+    verified_count = sum(1 for item in anomalies if item.get("verified"))
+    price_items = [item for item in anomalies if item.get("type") == "PRICE"]
+    impact_total = round(
+        sum(float(item.get("difference_value") or 0) for item in price_items),
+        2,
+    )
+    extra_cost_total = round(
+        sum(max(float(item.get("difference_value") or 0), 0) for item in price_items),
+        2,
+    )
+    rate = round((anomaly_documents / document_count * 100), 1) if document_count else 0
+
+    return {
+        "anomaly_count": len(anomalies),
+        "anomaly_documents": anomaly_documents,
+        "open_anomalies": open_count,
+        "verified_anomalies": verified_count,
+        "anomaly_rate_pct": rate,
+        "impact_total": impact_total,
+        "extra_cost_total": extra_cost_total,
+        "anomalies": anomalies,
+    }
+
+
 @app.get("/api/suppliers-overview")
 def suppliers_overview():
     conn = get_connection()
@@ -595,6 +749,12 @@ def suppliers_overview():
                 1,
             )
 
+        anomaly_stats = _supplier_anomaly_stats(
+            conn,
+            supplier["id"],
+            document_count=int(docs["document_count"] or 0),
+        )
+
         result.append({
             "id": supplier["id"],
             "name": supplier["name"],
@@ -606,6 +766,13 @@ def suppliers_overview():
             "last_purchase": totals["last_purchase"],
             "document_count": docs["document_count"],
             "monthly_change_pct": change_pct,
+            "anomaly_count": anomaly_stats["anomaly_count"],
+            "anomaly_documents": anomaly_stats["anomaly_documents"],
+            "open_anomalies": anomaly_stats["open_anomalies"],
+            "verified_anomalies": anomaly_stats["verified_anomalies"],
+            "anomaly_rate_pct": anomaly_stats["anomaly_rate_pct"],
+            "impact_total": anomaly_stats["impact_total"],
+            "extra_cost_total": anomaly_stats["extra_cost_total"],
         })
 
     conn.close()
@@ -668,7 +835,7 @@ def supplier_detail(supplier_id: str):
 
     documents = conn.execute(
         """
-        SELECT id,document_type,document_number,document_date,total_amount,status
+        SELECT id,document_type,document_number,document_date,total_amount,status,workflow_status
         FROM documents
         WHERE supplier_id=?
         ORDER BY document_date DESC,id DESC
@@ -677,13 +844,31 @@ def supplier_detail(supplier_id: str):
         (supplier_id,),
     ).fetchall()
 
+    document_count = conn.execute(
+        "SELECT COUNT(*) AS c FROM documents WHERE supplier_id=?",
+        (supplier_id,),
+    ).fetchone()["c"]
+
+    anomaly_stats = _supplier_anomaly_stats(
+        conn,
+        supplier_id,
+        document_count=int(document_count or 0),
+    )
+
     conn.close()
     return {
         "supplier": dict(supplier),
         "stats": dict(stats),
+        "document_count": int(document_count or 0),
         "products": [dict(r) for r in products],
         "monthly": [dict(r) for r in monthly],
         "documents": [dict(r) for r in documents],
+        "anomaly_stats": {
+            key: value
+            for key, value in anomaly_stats.items()
+            if key != "anomalies"
+        },
+        "anomalies": anomaly_stats["anomalies"],
     }
 
 
