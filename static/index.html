@@ -608,6 +608,25 @@
     </div>
   </div>
 
+
+  <div id="originalPreviewModal" class="original-preview-modal hidden" aria-hidden="true">
+    <div class="original-preview-card">
+      <div class="original-preview-header">
+        <div>
+          <h2 id="originalPreviewTitle">Documento originale</h2>
+          <p id="originalPreviewSubtitle">Anteprima del file originale importato.</p>
+        </div>
+        <div class="original-preview-actions">
+          <button id="openOriginalNewTab" type="button" class="secondary">Apri in nuova scheda</button>
+          <button id="closeOriginalPreview" type="button" class="secondary">Chiudi</button>
+        </div>
+      </div>
+      <div class="original-preview-body">
+        <iframe id="originalPreviewFrame" title="Anteprima documento originale"></iframe>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/app.js"></script>
   <script src="/static/anomaly-workflow-ui.js"></script>
   <script src="/static/ui-polish.js"></script>
