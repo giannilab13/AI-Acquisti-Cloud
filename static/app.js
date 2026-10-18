@@ -34,8 +34,23 @@ async function getJSON(url, options={}){
   return data;
 }
 
+let originalPreviewObjectUrl=null;
+
+function closeOriginalPreview(){
+  const modal=document.getElementById('originalPreviewModal');
+  const frame=document.getElementById('originalPreviewFrame');
+  if(frame)frame.src='about:blank';
+  if(modal){
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden','true');
+  }
+  if(originalPreviewObjectUrl){
+    URL.revokeObjectURL(originalPreviewObjectUrl);
+    originalPreviewObjectUrl=null;
+  }
+}
+
 async function openOriginalDocument(url){
-  const popup=window.open('','_blank');
   try{
     const headers=new Headers();
     if(activeCompanyId)headers.set('X-Company-ID',String(activeCompanyId));
@@ -45,13 +60,24 @@ async function openOriginalDocument(url){
       try{detail=(await response.json()).detail||detail}catch{}
       throw new Error(detail);
     }
+
     const blob=await response.blob();
-    const objectUrl=URL.createObjectURL(blob);
-    if(popup)popup.location.href=objectUrl;
-    else window.location.href=objectUrl;
-    setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);
+    if(originalPreviewObjectUrl)URL.revokeObjectURL(originalPreviewObjectUrl);
+    originalPreviewObjectUrl=URL.createObjectURL(blob);
+
+    const disposition=response.headers.get('content-disposition')||'';
+    const filenameMatch=disposition.match(/filename="?([^";]+)"?/i);
+    const filename=filenameMatch ? filenameMatch[1] : 'Documento originale';
+
+    document.getElementById('originalPreviewTitle').textContent=filename;
+    document.getElementById('originalPreviewSubtitle').textContent='Anteprima del documento originale importato.';
+    document.getElementById('originalPreviewFrame').src=originalPreviewObjectUrl;
+
+    const modal=document.getElementById('originalPreviewModal');
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden','false');
   }catch(e){
-    if(popup)popup.close();
+    closeOriginalPreview();
     alert(e.message||e);
   }
 }
@@ -730,6 +756,7 @@ function hideAiResponseWindow(){
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     hideAiResponseWindow();
+    if(!document.getElementById('originalPreviewModal')?.classList.contains('hidden')) closeOriginalPreview();
     if(!document.getElementById('docDetailPanel')?.classList.contains('hidden')) window.closeDocumentDetail?.();
     if(!document.getElementById('ddtDetailPanel')?.classList.contains('hidden')) window.closeDdtDetail?.();
   }
@@ -773,6 +800,15 @@ async function ask(){
 }
 document.getElementById('askBtn').addEventListener('click',ask);
 document.getElementById('question').addEventListener('keydown',e=>{if(e.key==='Enter')ask();});
+
+document.getElementById('closeOriginalPreview')?.addEventListener('click',closeOriginalPreview);
+document.getElementById('openOriginalNewTab')?.addEventListener('click',()=>{
+  if(originalPreviewObjectUrl)window.open(originalPreviewObjectUrl,'_blank','noopener');
+});
+document.getElementById('originalPreviewModal')?.addEventListener('click',e=>{
+  if(e.target?.id==='originalPreviewModal')closeOriginalPreview();
+});
+
 
 function statusLabel(status){
   const labels={
