@@ -336,7 +336,6 @@ def backfill_price_list_history(conn):
             effective_from=row["imported_at"],
             note="Storico ricostruito da listino importato.",
             previous_reference=previous,
-            force_record=True,
         )
         if history_id:
             added += 1
