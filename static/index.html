@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI Acquisti - Cloud 1.4C3.0</title>
+  <title>AI Acquisti - Cloud 1.4C3.1</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="stylesheet" href="/static/anomaly-workflow.css">
 </head>
@@ -21,7 +21,7 @@
       <button class="nav active" data-view="dashboardView">Dashboard</button>
       <button class="nav" data-view="documentsView">Documenti</button>
       <button class="nav" data-view="productsView">Prodotti</button>
-      <button class="nav" data-view="suppliersView">Fornitori</button>
+      <button class="nav" data-view="suppliersView">Analisi fornitori</button>
       <button class="nav" data-view="priceListsView">Listini</button>
       <button class="nav" data-view="usersView">Utenti</button>
       <button class="nav" disabled>Storico prezzi</button>
@@ -31,7 +31,7 @@
       <span id="currentUserEmail">—</span>
       <button id="logoutBtn" type="button">Esci</button>
     </div>
-    <div class="version">Cloud 1.4C3.0</div>
+    <div class="version">Cloud 1.4C3.1</div>
   </aside>
 
   <main>
@@ -124,7 +124,7 @@
     <section id="documentsView" class="view">
       <header>
         <div><h1>Documenti</h1><p>Importazione fatture e DDT con lettura AI</p></div>
-        <div class="status">Cloud 1.4C3.0</div>
+        <div class="status">Cloud 1.4C3.1</div>
       </header>
 
       <section class="panel upload-panel">
@@ -208,7 +208,7 @@
           <h1>Listini</h1>
           <p>Importazione e consultazione delle condizioni economiche dei fornitori.</p>
         </div>
-        <div class="status">Cloud 1.4C3.0</div>
+        <div class="status">Cloud 1.4C3.1</div>
       </header>
 
       <section class="panel upload-panel">
@@ -257,7 +257,7 @@
           <h1>Utenti</h1>
           <p>Gestisci gli accessi all'azienda selezionata.</p>
         </div>
-        <div class="status">Cloud 1.4C3.0</div>
+        <div class="status">Cloud 1.4C3.1</div>
       </header>
 
       <section class="panel company-identity-panel">
@@ -336,7 +336,7 @@
           <h1>Prodotti</h1>
           <p>Elenco completo dei prodotti presenti nel database e relativo storico acquisti.</p>
         </div>
-        <div class="status">Cloud 1.4C3.0</div>
+        <div class="status">Cloud 1.4C3.1</div>
       </header>
 
       <section class="kpis product-kpis">
@@ -378,29 +378,43 @@
     <section id="suppliersView" class="view">
       <header>
         <div>
-          <h1>Fornitori</h1>
-          <p>Controllo fornitori, spesa, prodotti acquistati e documenti collegati.</p>
+          <h1>Analisi fornitori</h1>
+          <p>Confronta in modo semplice affidabilità, anomalie e impatto economico dei fornitori.</p>
         </div>
-        <div class="status">Cloud 1.4C3.0</div>
+        <div class="status">Cloud 1.4C3.1</div>
       </header>
 
       <section class="kpis supplier-kpis">
-        <div class="card"><span>Fornitori totali</span><strong id="suppliersTotal">—</strong></div>
-        <div class="card"><span>Con acquisti</span><strong id="suppliersWithPurchases">—</strong></div>
-        <div class="card"><span>Spesa complessiva</span><strong id="suppliersSpendTotal">—</strong></div>
-        <div class="card"><span>Documenti importati</span><strong id="suppliersDocsTotal">—</strong></div>
+        <div class="card"><span>Fornitori</span><strong id="suppliersTotal">—</strong></div>
+        <div class="card"><span>Documenti controllati</span><strong id="suppliersDocsTotal">—</strong></div>
+        <div class="card"><span>Anomalie totali</span><strong id="suppliersAnomaliesTotal">—</strong></div>
+        <div class="card"><span>Da verificare</span><strong id="suppliersOpenAnomalies">—</strong></div>
+      </section>
+
+      <section class="panel supplier-comparison-panel">
+        <div class="panel-title">
+          <div>
+            <h2>Confronto rapido</h2>
+            <p class="sub">Incidenza delle anomalie sui documenti controllati. Più la percentuale è bassa, migliore è il risultato.</p>
+          </div>
+          <span>Fino a 6 fornitori</span>
+        </div>
+        <div id="supplierComparisonBars" class="supplier-comparison-bars"></div>
       </section>
 
       <section class="panel">
-        <div class="products-toolbar">
+        <div class="products-toolbar supplier-analysis-toolbar">
           <div class="search-box">
             <label for="suppliersSearch">Cerca fornitore</label>
             <input id="suppliersSearch" type="search" placeholder="Nome, P.IVA, categoria...">
           </div>
           <div class="filter-box">
-            <label for="suppliersCategory">Categoria</label>
-            <select id="suppliersCategory">
-              <option value="">Tutte</option>
+            <label for="suppliersAnomalyFilter">Anomalie</label>
+            <select id="suppliersAnomalyFilter">
+              <option value="">Tutti i fornitori</option>
+              <option value="WITH">Con anomalie</option>
+              <option value="OPEN">Con anomalie aperte</option>
+              <option value="NONE">Senza anomalie</option>
             </select>
           </div>
           <div class="products-count" id="suppliersCountLabel"></div>
