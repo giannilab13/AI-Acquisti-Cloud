@@ -1290,7 +1290,7 @@ window.showDocument=async id=>{
       <th>Sconto 2</th>
       <th>Netto fattura</th>
       <th>Netto listino</th>
-      <th>Differenza totale</th>
+      <th>Differenza</th>
       <th>Esito</th>
     </tr></thead>
     <tbody>${data.lines.map(l=>`<tr class="${l.price_check_status==='DIFFERENZA'?'invoice-line-anomaly':''}">
@@ -1305,7 +1305,7 @@ window.showDocument=async id=>{
       <td>${Number(l.invoice_discount_2||0).toFixed(2)}%</td>
       <td><strong>${fmtEuro(l.invoice_net_price ?? l.unit_price)}</strong></td>
       <td>${l.expected_net_price != null ? fmtEuro(l.expected_net_price) : '—'}</td>
-      <td class="${l.price_check_status==='DIFFERENZA'?'variance-cell':''}">${l.price_variance_total != null ? fmtEuro(l.price_variance_total) : '—'}</td>
+      <td class="${l.price_check_status==='DIFFERENZA'?'variance-cell':''}">${l.price_variance_unit != null ? `${Number(l.price_variance_unit)>0?'+':''}${fmtEuro(l.price_variance_unit)}` : '—'}</td>
       <td>${l.price_check_status==='OK'
         ? '<span class="check-pill ok">OK</span>'
         : l.price_check_status==='DIFFERENZA'
