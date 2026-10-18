@@ -67,18 +67,11 @@ def line_discounts(detail):
 
 
 def latest_expected_net_price(conn, supplier_id, product_id):
-    row = conn.execute(
-        """
-        SELECT pll.net_price
-        FROM price_list_lines pll
-        JOIN price_lists pl ON pl.id=pll.price_list_id
-        WHERE pl.supplier_id=? AND pll.product_id=? AND pll.net_price IS NOT NULL
-        ORDER BY pl.imported_at DESC, pl.id DESC, pll.id DESC
-        LIMIT 1
-        """,
-        (supplier_id, product_id),
-    ).fetchone()
-    return float(row["net_price"]) if row and row["net_price"] is not None else None
+    # C3.2: il riferimento corrente può provenire da un listino oppure
+    # da una fattura validata/da un aggiornamento prezzo accettato.
+    from price_reference import current_price_reference
+    reference = current_price_reference(conn, supplier_id, product_id)
+    return float(reference["net_price"]) if reference and reference.get("net_price") is not None else None
 
 
 def normalize_text(value):

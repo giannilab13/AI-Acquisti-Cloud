@@ -23,3 +23,30 @@ tr.invoice-line-verified>td:first-child{border-left:4px solid #28a36a}
 .check-pill.verified{background:#e2f4e9;color:#147a4b;border:1px solid #bfe0cc}
 .variance-cell.verified{color:#147a4b}
 @media(max-width:760px){.anomaly-workflow-heading-c3,.anomaly-workflow-row-c3{flex-direction:column;align-items:flex-start}.anomaly-verify-btn-c3{width:100%}}
+
+/* C3.2 - decisione sulle anomalie prezzo */
+.anomaly-actions-c32{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  flex:0 0 auto;
+  min-width:195px;
+}
+.anomaly-actions-c32 .anomaly-verify-btn-c3{min-width:195px}
+.anomaly-price-accept-c32{
+  background:#147a4b;
+  border-color:#147a4b;
+}
+.anomaly-price-error-c32{
+  background:#fff;
+}
+.anomaly-audit-c3 em{
+  flex-basis:100%;
+  font-style:normal;
+  font-weight:700;
+  color:#35556f;
+}
+@media(max-width:760px){
+  .anomaly-actions-c32{width:100%;min-width:0}
+  .anomaly-actions-c32 .anomaly-verify-btn-c3{width:100%;min-width:0}
+}

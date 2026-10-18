@@ -41,10 +41,11 @@ from spreadsheet_importer import import_price_list_file
 from ai_service import ask_ai
 from storage_service import read_document_bytes
 from anomaly_workflow import load_document_anomalies, open_document_anomalies, verify_document_anomaly
+from price_reference import establish_invoice_baselines
 
 load_dotenv()
 
-app = FastAPI(title="AI Acquisti Cloud", version="1.4C3.1")
+app = FastAPI(title="AI Acquisti Cloud", version="1.4C3.2")
 BASE_DIR = Path(__file__).parent
 COOKIE_SECURE = bool(os.getenv("RAILWAY_ENVIRONMENT_ID")) or os.getenv("COOKIE_SECURE", "").lower() in {"1", "true", "yes"}
 init_platform_db()
@@ -1451,6 +1452,7 @@ def verify_anomaly(document_id: int, payload: dict, request: Request):
             anomaly_key,
             request.state.user,
             payload.get("note", ""),
+            payload.get("resolution"),
         )
         conn.commit()
     except ValueError as exc:
@@ -1467,7 +1469,7 @@ def verify_anomaly(document_id: int, payload: dict, request: Request):
 
 
 @app.post("/api/documents/{document_id}/mark-handled")
-def mark_document_handled(document_id: int):
+def mark_document_handled(document_id: int, request: Request):
     conn = get_connection()
     doc = conn.execute(
         """
@@ -1498,6 +1500,10 @@ def mark_document_handled(document_id: int):
                 "Prima di chiudere la fattura devi verificare tutte le anomalie."
             )
 
+    baseline_history_ids = establish_invoice_baselines(
+        conn, document_id, user=request.state.user
+    )
+
     conn.execute(
         """
         UPDATE documents
@@ -1514,11 +1520,12 @@ def mark_document_handled(document_id: int):
         "ok": True,
         "document_id": document_id,
         "workflow_status": "GESTITO",
+        "baseline_prices_created": len(baseline_history_ids),
     }
 
 
 @app.post("/api/documents/{document_id}/confirm")
-def confirm_document(document_id: int):
+def confirm_document(document_id: int, request: Request):
     """
     Conferma una fattura DA_VERIFICARE.
     I movimenti entrano nello storico solo dopo questa conferma.
@@ -1608,6 +1615,12 @@ def confirm_document(document_id: int):
         (document_id,),
     ).fetchone()["c"]
 
+    # C3.2: se manca un listino/riferimento, la prima fattura validata
+    # diventa automaticamente la base di confronto per le successive.
+    baseline_history_ids = establish_invoice_baselines(
+        conn, document_id, user=request.state.user
+    )
+
     new_status = "CON_ANOMALIE" if anomaly_count else "IMPORTATA"
     new_workflow = "DA_GESTIRE" if new_status == "CON_ANOMALIE" else "GESTITO"
     conn.execute(
@@ -1630,6 +1643,7 @@ def confirm_document(document_id: int):
         "document_id": document_id,
         "status": new_status,
         "anomaly_count": anomaly_count,
+        "baseline_prices_created": len(baseline_history_ids),
     }
 
 
@@ -1786,6 +1800,57 @@ async def upload_price_list(supplier_id: str, file: UploadFile = File(...)):
         raise
     except Exception as e:
         raise HTTPException(400, f"Importazione listino non riuscita: {e}")
+
+
+@app.get("/api/price-history")
+def price_history():
+    conn = get_connection()
+
+    stats = conn.execute(
+        """
+        SELECT
+            COUNT(DISTINCT supplier_id || '|' || product_id) AS monitored_products,
+            COALESCE(SUM(CASE WHEN previous_net_price IS NOT NULL THEN 1 ELSE 0 END),0) AS changes_total,
+            COALESCE(SUM(CASE WHEN variation_value > 0.005 THEN 1 ELSE 0 END),0) AS increases,
+            COALESCE(SUM(CASE WHEN variation_value < -0.005 THEN 1 ELSE 0 END),0) AS decreases,
+            COALESCE(SUM(CASE WHEN source_type='FATTURA_BASE' THEN 1 ELSE 0 END),0) AS invoice_bases
+        FROM price_reference_history
+        """
+    ).fetchone()
+
+    rows = conn.execute(
+        """
+        SELECT h.id,h.supplier_id,s.name AS supplier,h.product_id,p.name AS product,
+               h.net_price,h.previous_net_price,h.variation_value,h.variation_pct,
+               h.list_price,h.discount_1,h.discount_2,h.unit,h.source_type,
+               h.effective_from,h.created_at,h.note,
+               d.document_number,d.document_date,
+               pl.file_name AS price_list_file
+        FROM price_reference_history h
+        JOIN suppliers s ON s.id=h.supplier_id
+        JOIN products p ON p.id=h.product_id
+        LEFT JOIN documents d ON d.id=h.source_document_id
+        LEFT JOIN price_lists pl ON pl.id=h.source_price_list_id
+        ORDER BY h.id DESC
+        LIMIT 500
+        """
+    ).fetchall()
+    conn.close()
+
+    def serialize(row):
+        item = dict(row)
+        for key in (
+            "net_price","previous_net_price","variation_value","variation_pct",
+            "list_price","discount_1","discount_2",
+        ):
+            if item.get(key) is not None:
+                item[key] = float(item[key])
+        return item
+
+    return {
+        "stats": dict(stats),
+        "rows": [serialize(row) for row in rows],
+    }
 
 
 @app.post("/api/assistant")
