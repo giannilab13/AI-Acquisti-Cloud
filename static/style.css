@@ -1708,3 +1708,53 @@ tr.invoice-line-anomaly:hover > td{
   }
   .original-preview-item{min-width:210px}
 }
+
+
+/* C3.2 - storico prezzi */
+.check-pill.base-price{
+  background:#e8f0ff;
+  color:#245bc7;
+  border:1px solid #c5d5f8;
+}
+.price-history-kpis{margin-bottom:18px}
+.price-history-toolbar{margin-bottom:14px}
+.price-history-table th:nth-child(4),
+.price-history-table th:nth-child(5),
+.price-history-table td:nth-child(4),
+.price-history-table td:nth-child(5){text-align:right;white-space:nowrap}
+.price-history-change{
+  display:inline-flex;
+  align-items:center;
+  border-radius:999px;
+  padding:5px 9px;
+  font-size:11px;
+  font-weight:800;
+  white-space:nowrap;
+}
+.price-history-change.up{background:#fde5e2;color:#a52d26}
+.price-history-change.down{background:#e3f4ea;color:#147a4b}
+.price-history-change.flat{background:#edf0f3;color:#5c6672}
+.price-history-base-label{
+  display:inline-flex;
+  border-radius:999px;
+  padding:5px 9px;
+  background:#e8f0ff;
+  color:#245bc7;
+  font-size:11px;
+  font-weight:800;
+  white-space:nowrap;
+}
+.price-history-source{
+  display:inline-flex;
+  border-radius:999px;
+  padding:5px 9px;
+  background:#edf0f3;
+  color:#53606d;
+  font-size:11px;
+  font-weight:700;
+}
+.price-history-source.accepted{background:#e8f6ee;color:#147a4b}
+@media(max-width:900px){
+  .price-history-table{min-width:980px}
+  #priceHistoryTable{overflow:auto}
+}
