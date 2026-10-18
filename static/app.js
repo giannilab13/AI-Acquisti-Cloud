@@ -9,6 +9,13 @@ let activeCompanyId = Number(localStorage.getItem('ai_acquisti_company_id') || 0
 let companiesCache = [];
 let currentUser = null;
 
+/* C3.1 - il dettaglio fattura è globale: può aprirsi sopra Dashboard o Analisi fornitori. */
+const globalDocDetailPanel=document.getElementById('docDetailPanel');
+if(globalDocDetailPanel && globalDocDetailPanel.parentElement?.id==='documentsView'){
+  document.body.appendChild(globalDocDetailPanel);
+}
+
+
 async function getJSON(url, options={}){
   const finalOptions={...options};
   const headers=new Headers(finalOptions.headers || {});
@@ -106,7 +113,7 @@ async function selectCompany(companyId){
   document.getElementById('ddtDetailPanel')?.classList.add('hidden');
   document.body.classList.remove('document-modal-open');
   document.getElementById('priceListDetailPanel')?.classList.add('hidden');
-  closeSupplierDetailPage?.();
+  closeSupplierDetailPage?.(false);
 
   await refreshCurrentView();
 }
@@ -531,7 +538,7 @@ async function createCompanyUser(){
 
 document.querySelectorAll('.nav[data-view]').forEach(btn=>{
   btn.addEventListener('click',()=>{
-    closeSupplierDetailPage?.();
+    closeSupplierDetailPage?.(false);
     document.querySelectorAll('.nav[data-view]').forEach(x=>x.classList.remove('active'));
     btn.classList.add('active');
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active-view'));
@@ -675,7 +682,7 @@ async function loadDashboardAnomalies(){
 }
 
 window.openAnomalyDocument = async id => {
-  closeSupplierDetailPage?.();
+  closeSupplierDetailPage?.(false);
   const btn = document.querySelector('.nav[data-view="documentsView"]');
   if(btn) btn.click();
   await loadDocuments();
@@ -1782,7 +1789,7 @@ function renderSupplierAnomalyHistory(){
       const impact=a.type==='PRICE'
         ? `${Number(a.difference_value||0)>0?'+':''}${fmtEuro(a.difference_value||0)}`
         : '—';
-      return `<tr class="clickable" onclick="openAnomalyDocument(${Number(a.document_id)})">
+      return `<tr class="clickable" onclick="openSupplierDocument(${Number(a.document_id)})">
         <td>${escSupplierHtml(a.document_date||'—')}</td>
         <td><strong>${escSupplierHtml(a.document_number||'—')}</strong></td>
         <td>${escSupplierHtml(supplierAnomalyTypeLabel(a.type))}</td>
@@ -1803,7 +1810,21 @@ window.setSupplierAnomalyFilter = filter => {
   renderSupplierAnomalyHistory();
 };
 
+window.openSupplierDocument = async id => {
+  // Resta nella pagina del fornitore: la fattura si apre sopra come finestra dedicata.
+  await window.showDocument(id);
+};
+
+function activateSupplierAnalysisBase(){
+  document.querySelectorAll('.nav[data-view]').forEach(x=>x.classList.remove('active'));
+  document.querySelector('.nav[data-view="suppliersView"]')?.classList.add('active');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active-view'));
+  document.getElementById('suppliersView')?.classList.add('active-view');
+}
+
+
 window.showSupplierDetail = async supplierId => {
+  activateSupplierAnalysisBase();
   const data = await getJSON(`/api/suppliers/${supplierId}/detail`);
   supplierDetailCache=data;
   supplierAnomalyFilter='ALL';
@@ -1845,7 +1866,7 @@ window.showSupplierDetail = async supplierId => {
     <table>
       <thead><tr><th>Data</th><th>Numero</th><th>Tipo</th><th>Totale</th><th>Stato</th></tr></thead>
       <tbody>${data.documents.map(d=>`
-        <tr class="clickable" onclick="openAnomalyDocument(${Number(d.id)})">
+        <tr class="clickable" onclick="openSupplierDocument(${Number(d.id)})">
           <td>${escSupplierHtml(d.document_date || '—')}</td>
           <td>${escSupplierHtml(d.document_number || '—')}</td>
           <td>${escSupplierHtml(d.document_type || '—')}</td>
@@ -1912,11 +1933,12 @@ window.showSupplierDetail = async supplierId => {
 
 document.getElementById('suppliersSearch').addEventListener('input', renderSuppliersTable);
 document.getElementById('suppliersAnomalyFilter').addEventListener('change', renderSuppliersTable);
-function closeSupplierDetailPage(){
+function closeSupplierDetailPage(returnToAnalysis=true){
   document.getElementById('supplierDetailPanel')?.classList.add('hidden');
   supplierDetailCache=null;
+  if(returnToAnalysis) activateSupplierAnalysisBase();
 }
-document.getElementById('closeSupplierDetail').addEventListener('click', closeSupplierDetailPage);
+document.getElementById('closeSupplierDetail').addEventListener('click', ()=>closeSupplierDetailPage(true));
 
 
 // ---------------- MVP 0.5 - Listini Excel / CSV ----------------
