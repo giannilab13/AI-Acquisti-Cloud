@@ -35,6 +35,9 @@ async function getJSON(url, options={}){
 }
 
 let originalPreviewObjectUrl=null;
+let originalPreviewItems=[];
+let originalPreviewActiveIndex=-1;
+let currentDocumentOriginalBundle=null;
 
 function closeOriginalPreview(){
   const modal=document.getElementById('originalPreviewModal');
@@ -48,13 +51,32 @@ function closeOriginalPreview(){
     URL.revokeObjectURL(originalPreviewObjectUrl);
     originalPreviewObjectUrl=null;
   }
+  originalPreviewItems=[];
+  originalPreviewActiveIndex=-1;
 }
 
-async function openOriginalDocument(url){
+function renderOriginalPreviewList(){
+  const list=document.getElementById('originalPreviewList');
+  const count=document.getElementById('originalPreviewCount');
+  if(!list || !count)return;
+  count.textContent=`${originalPreviewItems.length} ${originalPreviewItems.length===1?'documento':'documenti'}`;
+  list.innerHTML=originalPreviewItems.map((item,index)=>`
+    <button type="button" class="original-preview-item ${index===originalPreviewActiveIndex?'active':''}" onclick="selectOriginalPreviewItem(${index})">
+      <span class="original-preview-kind ${item.kind==='FATTURA'?'invoice':'ddt'}">${item.kind}</span>
+      <strong>${escSupplierHtml(item.label||'Documento')}</strong>
+      <small>${escSupplierHtml(item.date||'')}</small>
+    </button>
+  `).join('');
+}
+
+async function loadOriginalPreviewItem(index){
+  const item=originalPreviewItems[index];
+  if(!item)return;
+
   try{
     const headers=new Headers();
     if(activeCompanyId)headers.set('X-Company-ID',String(activeCompanyId));
-    const response=await fetch(url,{headers});
+    const response=await fetch(item.url,{headers});
     if(!response.ok){
       let detail='Originale non disponibile.';
       try{detail=(await response.json()).detail||detail}catch{}
@@ -64,23 +86,63 @@ async function openOriginalDocument(url){
     const blob=await response.blob();
     if(originalPreviewObjectUrl)URL.revokeObjectURL(originalPreviewObjectUrl);
     originalPreviewObjectUrl=URL.createObjectURL(blob);
+    originalPreviewActiveIndex=index;
 
     const disposition=response.headers.get('content-disposition')||'';
     const filenameMatch=disposition.match(/filename="?([^";]+)"?/i);
-    const filename=filenameMatch ? filenameMatch[1] : 'Documento originale';
+    const filename=filenameMatch ? filenameMatch[1] : item.label || 'Documento originale';
 
-    document.getElementById('originalPreviewTitle').textContent=filename;
-    document.getElementById('originalPreviewSubtitle').textContent='Anteprima del documento originale importato.';
+    document.getElementById('originalPreviewSelected').innerHTML=
+      `<span>${escSupplierHtml(item.kind)}</span><strong>${escSupplierHtml(item.label||filename)}</strong><small>${escSupplierHtml(item.date||'')}</small>`;
     document.getElementById('originalPreviewFrame').src=originalPreviewObjectUrl;
-
-    const modal=document.getElementById('originalPreviewModal');
-    modal.classList.remove('hidden');
-    modal.setAttribute('aria-hidden','false');
+    renderOriginalPreviewList();
   }catch(e){
-    closeOriginalPreview();
     alert(e.message||e);
   }
 }
+
+window.selectOriginalPreviewItem=async index=>{
+  await loadOriginalPreviewItem(Number(index));
+};
+
+async function openOriginalDocuments(items,title='Documenti originali',subtitle='Fattura e documenti collegati nello stesso fascicolo.'){
+  originalPreviewItems=(items||[]).filter(x=>x && x.url);
+  originalPreviewActiveIndex=-1;
+
+  if(!originalPreviewItems.length){
+    alert('Nessun documento originale disponibile.');
+    return;
+  }
+
+  document.getElementById('originalPreviewTitle').textContent=title;
+  document.getElementById('originalPreviewSubtitle').textContent=subtitle;
+  document.getElementById('originalPreviewSelected').innerHTML='';
+  renderOriginalPreviewList();
+
+  const modal=document.getElementById('originalPreviewModal');
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden','false');
+
+  await loadOriginalPreviewItem(0);
+}
+
+async function openOriginalDocument(url){
+  await openOriginalDocuments([
+    {kind:'DOCUMENTO',label:'Documento originale',date:'',url}
+  ],'Documento originale','Anteprima del file originale importato.');
+}
+
+window.openOriginalBundle=async ()=>{
+  if(!currentDocumentOriginalBundle){
+    alert('Fascicolo originale non disponibile.');
+    return;
+  }
+  await openOriginalDocuments(
+    currentDocumentOriginalBundle.items,
+    currentDocumentOriginalBundle.title,
+    currentDocumentOriginalBundle.subtitle
+  );
+};
 
 function showCompanyModal(force=false){
   const modal=document.getElementById('companyModal');
@@ -136,6 +198,7 @@ async function selectCompany(companyId){
 
   // Chiude eventuali dettagli appartenenti alla precedente azienda.
   document.getElementById('docDetailPanel')?.classList.add('hidden');
+  currentDocumentOriginalBundle=null;
   document.getElementById('ddtDetailPanel')?.classList.add('hidden');
   document.body.classList.remove('document-modal-open');
   document.getElementById('priceListDetailPanel')?.classList.add('hidden');
@@ -1177,6 +1240,7 @@ document.querySelectorAll('.doc-filter').forEach(btn=>{
 window.closeDocumentDetail=()=>{
   const panel=document.getElementById('docDetailPanel');
   if(panel)panel.classList.add('hidden');
+  currentDocumentOriginalBundle=null;
   document.body.classList.remove('document-modal-open');
 };
 
@@ -1212,6 +1276,24 @@ window.showDocument=async id=>{
   const ddt=data.ddt_reconciliation||{};
   const control=data.purchase_control||{};
   const linkedDdt=(ddt.references||[]).filter(x=>x.delivery_note_id);
+  currentDocumentOriginalBundle={
+    title:`Documenti originali · ${d.document_number||'Fattura'}`,
+    subtitle:`${d.supplier||'Fornitore'} · fattura e ${linkedDdt.length} DDT collegati`,
+    items:[
+      {
+        kind:'FATTURA',
+        label:d.document_number||'Fattura',
+        date:d.document_date||'',
+        url:`/api/documents/${d.id}/original`
+      },
+      ...linkedDdt.map(x=>({
+        kind:'DDT',
+        label:x.ddt_number||x.reference_number||'DDT',
+        date:x.ddt_date||x.reference_date||'',
+        url:`/api/ddt/${x.delivery_note_id}/original`
+      }))
+    ]
+  };
   const overallClass=control.status==='OK'?'ok':control.status==='ANOMALIE'?'anomaly':'partial';
   const overallIcon=control.status==='OK'?'✓':control.status==='ANOMALIE'?'!':'i';
   const dossier=`<section class="invoice-dossier">
@@ -1226,7 +1308,7 @@ window.showDocument=async id=>{
       <div class="dossier-card">
         <span>Fattura</span>
         <strong>${d.document_number||'—'} · ${d.document_date||'—'}</strong>
-        <button type="button" class="secondary" onclick="openOriginalDocument('/api/documents/${d.id}/original')">Visualizza fattura originale</button>
+        <button type="button" class="secondary" onclick="openOriginalBundle()">Documenti originali (${1+linkedDdt.length})</button>
       </div>
       <div class="dossier-card">
         <span>DDT collegati</span>
