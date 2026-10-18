@@ -634,7 +634,7 @@ body.document-modal-open{
   top:50%;
   left:50%;
   transform:translate(-50%,-50%);
-  z-index:1200;
+  z-index:2600;
   width:min(1200px,calc(100vw - 48px));
   max-height:86vh;
   overflow-y:auto;
@@ -1406,3 +1406,8 @@ tr.invoice-line-anomaly:hover > td{
     flex-direction:column;
   }
 }
+
+
+/* C3.1 - livelli pagina fornitore / fattura */
+.supplier-detail-page{z-index:1800}
+.document-detail-modal{z-index:2600}
