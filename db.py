@@ -1191,6 +1191,11 @@ def init_company_db(company_id):
                 """
             )
         _ensure_numeric_columns(raw, schema_name)
+
+        # C3.2: ricostruisce una sola volta lo storico dei listini già presenti.
+        from price_reference import backfill_price_list_history
+        backfill_price_list_history(ConnectionCompat(raw))
+
         raw.commit()
         _initialized_companies.add(company_id)
     except Exception:
