@@ -302,6 +302,10 @@ def import_price_list_file(file_name, file_bytes, supplier_id):
         (supplier_id, file_name, file_hash, "IMPORTATO", len(parsed)),
     )
     price_list_id = cur.lastrowid
+    price_list_imported_at = conn.execute(
+        "SELECT imported_at FROM price_lists WHERE id=?",
+        (price_list_id,),
+    ).fetchone()["imported_at"]
 
     created_products = 0
     matched_products = 0
@@ -350,7 +354,7 @@ def import_price_list_file(file_name, file_bytes, supplier_id):
             source_type="LISTINO",
             source_price_list_id=price_list_id,
             source_price_list_line_id=line_cur.lastrowid,
-            effective_from=None,
+            effective_from=price_list_imported_at,
             note="Prezzo da listino importato.",
             previous_reference=previous_reference,
         )
