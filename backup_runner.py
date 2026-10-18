@@ -189,6 +189,11 @@ with zipfile.ZipFile(ZIP, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
 
 backup_key = "backups/AI-Acquisti-C3.0-COMPLETO.zip"
 s3.upload_file(str(ZIP), bucket, backup_key)
+download_url = s3.generate_presigned_url(
+    "get_object",
+    Params={"Bucket": bucket, "Key": backup_key},
+    ExpiresIn=3600,
+)
 
 print("BACKUP_READY")
 print("BUCKET_KEY=" + backup_key)
@@ -196,3 +201,4 @@ print("ZIP_BYTES=" + str(ZIP.stat().st_size))
 print("ZIP_SHA256=" + hashlib.sha256(ZIP.read_bytes()).hexdigest())
 print("DB_TABLES=" + str(len(tables)))
 print("DOCUMENTS=" + str(len(objects)))
+print("DOWNLOAD_URL=" + download_url)
