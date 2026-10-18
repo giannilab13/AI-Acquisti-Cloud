@@ -1659,6 +1659,7 @@ async function loadSuppliersPage(){
   document.getElementById('suppliersOpenAnomalies').textContent = openTotal;
 
   renderSupplierComparison();
+  renderSupplierAnomalyDistribution();
   renderSuppliersTable();
 }
 
@@ -1681,18 +1682,62 @@ function renderSupplierComparison(){
     return;
   }
 
-  const max=Math.max(...rows.map(r=>Number(r.anomaly_rate_pct||0)),1);
-  el.innerHTML=rows.map(r=>{
-    const rate=Number(r.anomaly_rate_pct||0);
-    return `<div class="supplier-comparison-row" onclick="showSupplierDetail('${escSupplierHtml(r.id)}')">
-      <div class="supplier-comparison-label">
-        <strong>${escSupplierHtml(r.name)}</strong>
-        <small>${Number(r.anomaly_count||0)} anomalie · ${Number(r.open_anomalies||0)} aperte</small>
-      </div>
-      <div class="supplier-comparison-track"><span style="width:${rate?Math.max(4,rate/max*100):0}%"></span></div>
-      <strong class="supplier-comparison-rate">${supplierRate(rate)}</strong>
+  const highest=Math.max(...rows.map(r=>Number(r.anomaly_rate_pct||0)),0);
+  const axisMax=Math.min(100,Math.max(10,Math.ceil((highest+5)/10)*10));
+  const half=axisMax/2;
+
+  el.innerHTML=`
+    <div class="supplier-incidence-rows">
+      ${rows.map(r=>{
+        const rate=Number(r.anomaly_rate_pct||0);
+        const width=rate>0 ? Math.max(3,Math.min(100,(rate/axisMax)*100)) : 0;
+        const critical=rate>0;
+        return `<div class="supplier-incidence-row" onclick="showSupplierDetail('${escSupplierHtml(r.id)}')">
+          <div class="supplier-incidence-label">
+            <strong>${escSupplierHtml(r.name)}</strong>
+            <small>${Number(r.anomaly_count||0)} anomalie · ${Number(r.open_anomalies||0)} aperte</small>
+          </div>
+          <div class="supplier-incidence-bar-wrap">
+            <div class="supplier-incidence-bar"><span class="${critical?'critical':''}" style="width:${width}%"></span></div>
+          </div>
+          <strong class="supplier-incidence-value ${critical?'critical':''}">${supplierRate(rate)}</strong>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="supplier-incidence-axis">
+      <span>0%</span><span>${supplierRate(half).replace(',0','')}</span><span>${supplierRate(axisMax).replace(',0','')}</span>
     </div>`;
-  }).join('');
+}
+
+function renderSupplierAnomalyDistribution(){
+  const el=document.getElementById('supplierAnomalyDistribution');
+  if(!el)return;
+
+  const total=suppliersOverviewCache.reduce((sum,s)=>sum+Number(s.anomaly_count||0),0);
+  const open=suppliersOverviewCache.reduce((sum,s)=>sum+Number(s.open_anomalies||0),0);
+  const verified=suppliersOverviewCache.reduce((sum,s)=>sum+Number(s.verified_anomalies||0),0);
+
+  if(total<=0){
+    el.innerHTML=`<div class="supplier-distribution-empty">
+      <div class="supplier-donut zero"><div><strong>0</strong><span>anomalie</span></div></div>
+      <p>Nessuna anomalia rilevata.</p>
+    </div>`;
+    return;
+  }
+
+  const verifiedPct=Math.max(0,Math.min(100,(verified/total)*100));
+  const openPct=Math.max(0,Math.min(100,(open/total)*100));
+
+  el.innerHTML=`
+    <div class="supplier-donut-layout">
+      <div class="supplier-donut" style="--verified-pct:${verifiedPct}%">
+        <div><strong>${total}</strong><span>anomalie<br>totali</span></div>
+      </div>
+      <div class="supplier-donut-legend">
+        <div><i class="dot open"></i><span>Aperte</span><strong>${open} (${supplierRate(openPct)})</strong></div>
+        <div><i class="dot verified"></i><span>Verificate</span><strong>${verified} (${supplierRate(verifiedPct)})</strong></div>
+      </div>
+    </div>`;
 }
 
 function renderSuppliersTable(){
@@ -1733,7 +1778,7 @@ function renderSuppliersTable(){
         <th>Anomalie</th>
         <th>Aperte</th>
         <th>Incidenza</th>
-        <th>Maggior costo</th>
+        <th>Maggior costo rilevato</th>
       </tr>
     </thead>
     <tbody>

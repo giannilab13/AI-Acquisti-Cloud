@@ -391,18 +391,36 @@
         <div class="card"><span>Da verificare</span><strong id="suppliersOpenAnomalies">—</strong></div>
       </section>
 
-      <section class="panel supplier-comparison-panel">
-        <div class="panel-title">
-          <div>
-            <h2>Confronto rapido</h2>
-            <p class="sub">Incidenza delle anomalie sui documenti controllati. Più la percentuale è bassa, migliore è il risultato.</p>
+      <section class="supplier-insights-grid">
+        <div class="panel supplier-incidence-panel">
+          <div class="panel-title">
+            <div>
+              <h2>Incidenza anomalie per fornitore</h2>
+              <p class="sub">Percentuale di documenti con anomalie. Più la percentuale è alta, maggiore è l'attenzione richiesta.</p>
+            </div>
+            <span>Fino a 6 fornitori</span>
           </div>
-          <span>Fino a 6 fornitori</span>
+          <div id="supplierComparisonBars" class="supplier-incidence-chart"></div>
         </div>
-        <div id="supplierComparisonBars" class="supplier-comparison-bars"></div>
+
+        <div class="panel supplier-distribution-panel">
+          <div class="panel-title">
+            <div>
+              <h2>Distribuzione anomalie</h2>
+              <p class="sub">Stato delle anomalie rilevate sui documenti controllati.</p>
+            </div>
+          </div>
+          <div id="supplierAnomalyDistribution" class="supplier-anomaly-distribution"></div>
+        </div>
       </section>
 
-      <section class="panel">
+      <section class="panel supplier-list-panel">
+        <div class="supplier-list-heading">
+          <div>
+            <h2>Elenco fornitori</h2>
+            <p class="sub">Tutti i fornitori con i principali indicatori e il maggior costo rilevato.</p>
+          </div>
+        </div>
         <div class="products-toolbar supplier-analysis-toolbar">
           <div class="search-box">
             <label for="suppliersSearch">Cerca fornitore</label>

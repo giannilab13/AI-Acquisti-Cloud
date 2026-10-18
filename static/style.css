@@ -1411,3 +1411,141 @@ tr.invoice-line-anomaly:hover > td{
 /* C3.1 - livelli pagina fornitore / fattura */
 .supplier-detail-page{z-index:1800}
 .document-detail-modal{z-index:2600}
+
+
+/* C3.1 - redesign grafici Analisi fornitori */
+.supplier-insights-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.7fr) minmax(320px,.9fr);
+  gap:16px;
+  margin-bottom:16px;
+}
+.supplier-incidence-panel,.supplier-distribution-panel{min-height:340px}
+.supplier-incidence-chart{padding-top:2px}
+.supplier-incidence-rows{display:flex;flex-direction:column}
+.supplier-incidence-row{
+  display:grid;
+  grid-template-columns:minmax(170px,1.05fr) minmax(260px,2.35fr) 72px;
+  gap:14px;
+  align-items:center;
+  min-height:48px;
+  padding:8px 0;
+  border-bottom:1px solid var(--line);
+  cursor:pointer;
+}
+.supplier-incidence-row:last-child{border-bottom:0}
+.supplier-incidence-row:hover{background:#fafbfc}
+.supplier-incidence-label strong,.supplier-incidence-label small{display:block}
+.supplier-incidence-label strong{font-size:13px}
+.supplier-incidence-label small{margin-top:3px;color:var(--muted);font-size:11px}
+.supplier-incidence-bar-wrap{padding:0 2px}
+.supplier-incidence-bar{
+  height:12px;
+  border-radius:999px;
+  overflow:hidden;
+  background:#edf0f3;
+}
+.supplier-incidence-bar span{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:#9eb6ff;
+}
+.supplier-incidence-bar span.critical{background:#ef5350}
+.supplier-incidence-value{
+  text-align:right;
+  white-space:nowrap;
+  font-size:13px;
+}
+.supplier-incidence-value.critical{color:#c6362c}
+.supplier-incidence-axis{
+  display:flex;
+  justify-content:space-between;
+  margin:9px 72px 0 calc(170px + 14px);
+  color:var(--muted);
+  font-size:11px;
+}
+.supplier-anomaly-distribution{
+  min-height:245px;
+  display:grid;
+  place-items:center;
+}
+.supplier-donut-layout{
+  width:100%;
+  display:grid;
+  grid-template-columns:minmax(170px,1fr) minmax(150px,.85fr);
+  align-items:center;
+  gap:18px;
+}
+.supplier-donut{
+  --verified-pct:0%;
+  width:190px;
+  aspect-ratio:1;
+  border-radius:50%;
+  margin:auto;
+  display:grid;
+  place-items:center;
+  background:conic-gradient(#22a35a 0 var(--verified-pct),#ef5350 var(--verified-pct) 100%);
+  position:relative;
+}
+.supplier-donut::after{
+  content:"";
+  width:64%;
+  aspect-ratio:1;
+  border-radius:50%;
+  background:#fff;
+  position:absolute;
+}
+.supplier-donut>div{
+  position:relative;
+  z-index:1;
+  text-align:center;
+}
+.supplier-donut strong{
+  display:block;
+  font-size:29px;
+  line-height:1;
+}
+.supplier-donut span{
+  display:block;
+  margin-top:6px;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.3;
+}
+.supplier-donut.zero{background:#edf0f3}
+.supplier-donut-legend{display:flex;flex-direction:column;gap:20px}
+.supplier-donut-legend>div{
+  display:grid;
+  grid-template-columns:12px 1fr;
+  column-gap:9px;
+  row-gap:3px;
+  align-items:center;
+}
+.supplier-donut-legend .dot{
+  width:11px;height:11px;border-radius:50%;grid-row:1/3;
+}
+.supplier-donut-legend .dot.open{background:#ef5350}
+.supplier-donut-legend .dot.verified{background:#22a35a}
+.supplier-donut-legend span{font-size:12px;color:var(--muted)}
+.supplier-donut-legend strong{font-size:14px}
+.supplier-distribution-empty{text-align:center}
+.supplier-distribution-empty p{margin-top:14px}
+.supplier-list-heading{margin-bottom:12px}
+.supplier-list-heading h2{margin:0}
+.supplier-list-panel .supplier-analysis-table th:nth-last-child(1),
+.supplier-list-panel .supplier-analysis-table td:nth-last-child(1){min-width:135px}
+@media(max-width:1100px){
+  .supplier-insights-grid{grid-template-columns:1fr}
+  .supplier-distribution-panel{min-height:280px}
+}
+@media(max-width:760px){
+  .supplier-incidence-row{
+    grid-template-columns:1fr 64px;
+    gap:7px 10px;
+  }
+  .supplier-incidence-bar-wrap{grid-column:1/-1;grid-row:2}
+  .supplier-incidence-axis{margin:8px 0 0}
+  .supplier-donut-layout{grid-template-columns:1fr}
+  .supplier-donut-legend{max-width:240px;width:100%;margin:auto}
+}
