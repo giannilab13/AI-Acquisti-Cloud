@@ -189,6 +189,7 @@ async function refreshCurrentView(){
   }
   if(active.id==='productsView') await loadProductsPage();
   if(active.id==='suppliersView') await loadSuppliersPage();
+  if(active.id==='priceHistoryView') await loadPriceHistory();
 }
 
 async function selectCompany(companyId){
@@ -638,6 +639,7 @@ document.querySelectorAll('.nav[data-view]').forEach(btn=>{
     if(btn.dataset.view==='usersView'){ loadCompanyProfile(); loadCompanyUsers(); }
     if(btn.dataset.view==='productsView') loadProductsPage();
     if(btn.dataset.view==='suppliersView') loadSuppliersPage();
+    if(btn.dataset.view==='priceHistoryView') loadPriceHistory();
   });
 });
 
@@ -1428,9 +1430,11 @@ window.showDocument=async id=>{
         ? '<span class="check-pill ok">OK</span>'
         : l.price_check_status==='DIFFERENZA'
           ? '<span class="check-pill bad">DIFFERENZA</span>'
-          : (l.price_check_status==='NON_APPLICABILE' || l.line_type==='ANCILLARY')
-            ? '<span class="check-pill neutral">ACCESSORIA</span>'
-            : '<span class="check-pill neutral">SENZA LISTINO</span>'}</td>
+          : l.price_check_status==='BASE_PREZZO'
+            ? '<span class="check-pill base-price">BASE PREZZO</span>'
+            : (l.price_check_status==='NON_APPLICABILE' || l.line_type==='ANCILLARY')
+              ? '<span class="check-pill neutral">ACCESSORIA</span>'
+              : '<span class="check-pill neutral">SENZA LISTINO</span>'}</td>
     </tr>`).join('')}</tbody>
   </table>
   ${finalAction}`;
@@ -1562,6 +1566,97 @@ document.getElementById('createSupplierBtn').addEventListener('click',createSupp
 document.getElementById('supplierName').addEventListener('keydown',e=>{
   if(e.key==='Enter')createSupplierFromModal();
 });
+
+// ---------------- C3.2 - Storico prezzi ----------------
+let priceHistoryRowsCache=[];
+
+function priceHistorySourceLabel(row){
+  if(row.source_type==='FATTURA_BASE') return 'Base da fattura';
+  if(row.source_type==='FATTURA_AGGIORNAMENTO') return 'Nuovo prezzo concordato';
+  if(row.source_type==='LISTINO') return 'Listino';
+  return row.source_type||'—';
+}
+
+function priceHistoryVariation(row){
+  if(row.previous_net_price===null || row.previous_net_price===undefined){
+    return '<span class="price-history-base-label">Base iniziale</span>';
+  }
+  const value=Number(row.variation_value||0);
+  const pct=Number(row.variation_pct||0);
+  const cls=value>0.005?'up':value<-0.005?'down':'flat';
+  const sign=value>0?'+':'';
+  const pctSign=pct>0?'+':'';
+  return `<span class="price-history-change ${cls}">${sign}${fmtEuro(value)} · ${pctSign}${pct.toFixed(2)}%</span>`;
+}
+
+function renderPriceHistory(){
+  const el=document.getElementById('priceHistoryTable');
+  if(!el)return;
+
+  const q=(document.getElementById('priceHistorySearch')?.value||'').trim().toLowerCase();
+  const filter=document.getElementById('priceHistoryFilter')?.value||'';
+
+  const rows=priceHistoryRowsCache.filter(r=>{
+    if(q && !(`${r.product||''} ${r.supplier||''}`.toLowerCase().includes(q))) return false;
+    const variation=Number(r.variation_value||0);
+    if(filter==='INCREASE' && variation<=0.005) return false;
+    if(filter==='DECREASE' && variation>=-0.005) return false;
+    if(filter==='BASE' && r.previous_net_price!==null && r.previous_net_price!==undefined) return false;
+    if(filter==='LIST' && r.source_type!=='LISTINO') return false;
+    return true;
+  });
+
+  const count=document.getElementById('priceHistoryCountLabel');
+  if(count)count.textContent=`${rows.length} ${rows.length===1?'movimento':'movimenti'}`;
+
+  if(!rows.length){
+    el.innerHTML='<div class="empty-state">Nessun movimento prezzo corrisponde ai filtri selezionati.</div>';
+    return;
+  }
+
+  el.innerHTML=`<table class="price-history-table">
+    <thead><tr>
+      <th>Data</th>
+      <th>Fornitore</th>
+      <th>Prodotto</th>
+      <th>Prezzo precedente</th>
+      <th>Nuovo prezzo</th>
+      <th>Variazione</th>
+      <th>Origine</th>
+      <th>Documento</th>
+    </tr></thead>
+    <tbody>${rows.map(r=>`<tr>
+      <td>${r.effective_from||r.created_at||'—'}</td>
+      <td><strong>${escSupplierHtml(r.supplier||'—')}</strong></td>
+      <td>${escSupplierHtml(r.product||'—')}</td>
+      <td>${r.previous_net_price!==null && r.previous_net_price!==undefined?fmtEuro(r.previous_net_price):'—'}</td>
+      <td><strong>${fmtEuro(r.net_price)}</strong></td>
+      <td>${priceHistoryVariation(r)}</td>
+      <td><span class="price-history-source ${r.source_type==='FATTURA_AGGIORNAMENTO'?'accepted':''}">${escSupplierHtml(priceHistorySourceLabel(r))}</span></td>
+      <td>${escSupplierHtml(r.document_number||r.price_list_file||'—')}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+async function loadPriceHistory(){
+  const data=await getJSON('/api/price-history');
+  const stats=data.stats||{};
+  priceHistoryRowsCache=data.rows||[];
+
+  const set=(id,value)=>{
+    const el=document.getElementById(id);
+    if(el)el.textContent=value;
+  };
+  set('priceHistoryProducts',stats.monitored_products||0);
+  set('priceHistoryChanges',stats.changes_total||0);
+  set('priceHistoryIncreases',stats.increases||0);
+  set('priceHistoryDecreases',stats.decreases||0);
+  renderPriceHistory();
+}
+
+document.getElementById('refreshPriceHistory')?.addEventListener('click',()=>loadPriceHistory().catch(e=>alert(e.message||e)));
+document.getElementById('priceHistorySearch')?.addEventListener('input',renderPriceHistory);
+document.getElementById('priceHistoryFilter')?.addEventListener('change',renderPriceHistory);
 
 bootstrapApp();
 
