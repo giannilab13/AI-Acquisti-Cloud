@@ -613,16 +613,26 @@
     <div class="original-preview-card">
       <div class="original-preview-header">
         <div>
-          <h2 id="originalPreviewTitle">Documento originale</h2>
-          <p id="originalPreviewSubtitle">Anteprima del file originale importato.</p>
+          <h2 id="originalPreviewTitle">Documenti originali</h2>
+          <p id="originalPreviewSubtitle">Fattura e DDT collegati nello stesso fascicolo.</p>
         </div>
         <div class="original-preview-actions">
           <button id="openOriginalNewTab" type="button" class="secondary">Apri in nuova scheda</button>
           <button id="closeOriginalPreview" type="button" class="secondary">Chiudi</button>
         </div>
       </div>
-      <div class="original-preview-body">
-        <iframe id="originalPreviewFrame" title="Anteprima documento originale"></iframe>
+      <div class="original-preview-workspace">
+        <aside class="original-preview-sidebar">
+          <div class="original-preview-sidebar-title">
+            <strong>Originali disponibili</strong>
+            <span id="originalPreviewCount">0 documenti</span>
+          </div>
+          <div id="originalPreviewList" class="original-preview-list"></div>
+        </aside>
+        <div class="original-preview-body">
+          <div id="originalPreviewSelected" class="original-preview-selected"></div>
+          <iframe id="originalPreviewFrame" title="Anteprima documento originale"></iframe>
+        </div>
       </div>
     </div>
   </div>
