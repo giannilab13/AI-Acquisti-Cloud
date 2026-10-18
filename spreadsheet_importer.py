@@ -322,7 +322,7 @@ def import_price_list_file(file_name, file_bytes, supplier_id):
         else:
             matched_products += 1
 
-        previous_reference = current_price_reference(conn, supplier_id, product_id)
+        previous_reference = current_price_reference(conn, supplier_id, product_id) or {"net_price": None}
         line_cur = conn.execute(
             """
             INSERT INTO price_list_lines(
