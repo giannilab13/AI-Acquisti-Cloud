@@ -1,5 +1,5 @@
 (function(){
-  const UI_VERSION='1.4C3.1';
+  const UI_VERSION='1.4C3.2';
 
   function ensureResponsiveStylesheet(){
     if(document.querySelector('link[href="/static/responsive.css"]')) return;
